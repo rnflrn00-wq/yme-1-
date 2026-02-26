@@ -14,6 +14,7 @@ let currentVideoTitleText = "";
 let playbackTimer = null;
 let floatingMenuOwnerKey = null;
 let currentPlaybackSecond = null;
+let openedTimeMemoSheetVideoId = null;
 
 function getVideoIdFromUrl(url) {
   if (!url) return null;
@@ -96,14 +97,7 @@ function sendShowPopupMessage(tabId, videoId) {
   if (!tabId) return;
 
   chrome.tabs.sendMessage(tabId, { type: "SHOW_MEMO_POPUP", videoId }, () => {
-    if (!chrome.runtime.lastError) return;
-
-    chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-      if (chrome.runtime.lastError) return;
-      chrome.tabs.sendMessage(tabId, { type: "SHOW_MEMO_POPUP", videoId }, () => {
-        void chrome.runtime.lastError;
-      });
-    });
+    void chrome.runtime.lastError;
   });
 }
 
@@ -121,19 +115,9 @@ function seekVideoInTab(tabId, time, fallbackUrl) {
   if (!tabId) return;
 
   const safeTime = Number.isFinite(time) ? Math.max(0, Math.floor(time)) : 0;
-  const sendSeek = () => {
-    chrome.tabs.sendMessage(tabId, { type: "SEEK_TO", time: safeTime }, (response) => {
-      if (!chrome.runtime.lastError && response && response.ok) return;
-      chrome.tabs.update(tabId, { url: fallbackUrl, active: true });
-    });
-  };
-
-  chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-    if (chrome.runtime.lastError) {
-      chrome.tabs.update(tabId, { url: fallbackUrl, active: true });
-      return;
-    }
-    sendSeek();
+  chrome.tabs.sendMessage(tabId, { type: "SEEK_TO", time: safeTime }, (response) => {
+    if (!chrome.runtime.lastError && response && response.ok) return;
+    chrome.tabs.update(tabId, { url: fallbackUrl, active: true });
   });
 }
 
@@ -153,6 +137,21 @@ function smartOpenVideo(videoId, { showPopup = false } = {}) {
     });
   });
 }
+
+function openVideoInNewTab(videoId, { showPopup = false } = {}) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  chrome.tabs.create({ url, active: true }, (createdTab) => {
+    if (chrome.runtime.lastError) {
+      chrome.windows.create({ url, focused: true });
+      return;
+    }
+
+    if (showPopup && createdTab?.id) {
+      sendShowPopupMessage(createdTab.id, videoId);
+    }
+  });
+}
+
 
 function smartOpenVideoAtTime(videoId, time) {
   chrome.tabs.query({}, (tabs) => {
@@ -348,26 +347,12 @@ function withActiveYoutubeTab(callback) {
     }
 
     chrome.tabs.sendMessage(tabId, { type: "GET_TIME" }, (response) => {
-      if (!chrome.runtime.lastError && response && response.time !== undefined) {
-        callback(Math.max(0, Math.floor(response.time)));
+      if (chrome.runtime.lastError || !response || response.time === undefined) {
+        callback(null);
         return;
       }
 
-      chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-        if (chrome.runtime.lastError) {
-          callback(null);
-          return;
-        }
-
-        chrome.tabs.sendMessage(tabId, { type: "GET_TIME" }, (retryResponse) => {
-          if (chrome.runtime.lastError || !retryResponse || retryResponse.time === undefined) {
-            callback(null);
-            return;
-          }
-
-          callback(Math.max(0, Math.floor(retryResponse.time)));
-        });
-      });
+      callback(Math.max(0, Math.floor(response.time)));
     });
   });
 }
@@ -533,13 +518,103 @@ function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
   });
 }
 
+function closeTimeMemoSheet() {
+  document.getElementById("timeMemoSheet")?.classList.remove("open");
+  const list = document.getElementById("timeMemoSheetList");
+  if (list) list.innerHTML = "";
+  openedTimeMemoSheetVideoId = null;
+}
+
+function buildTimeMemoRow(videoId, memo, { isActiveTimeMemo = false } = {}) {
+  const timeMemo = document.createElement("div");
+  timeMemo.className = `time-memo${isActiveTimeMemo ? " is-active-time" : ""}`;
+
+  const timeContent = document.createElement("div");
+  timeContent.className = "time-content memo-link";
+  timeContent.onclick = (event) => {
+    event.stopPropagation();
+    smartOpenVideoAtTime(videoId, memo.time);
+  };
+
+  const timeTextArea = document.createElement("div");
+  timeTextArea.className = "memo-text-area-2";
+
+  const timeLabel = document.createElement("span");
+  timeLabel.className = "time-label";
+  timeLabel.innerText = formatTime(memo.time);
+
+  const timeText = document.createElement("span");
+  timeText.className = "memo-title-2";
+  timeText.innerHTML = highlightText(memo.text, currentFilterText);
+
+  timeTextArea.appendChild(timeLabel);
+  timeTextArea.appendChild(timeText);
+  timeContent.appendChild(timeTextArea);
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  actions.appendChild(createTimeMemoMenuButton(videoId, memo.index, memo.text));
+
+  timeMemo.appendChild(timeContent);
+  timeMemo.appendChild(actions);
+  return timeMemo;
+}
+
+function openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo = false, playingSecond = null }) {
+  const sheet = document.getElementById("timeMemoSheet");
+  const titleEl = document.getElementById("timeMemoSheetTitle");
+  const countEl = document.getElementById("timeMemoSheetCount");
+  const listEl = document.getElementById("timeMemoSheetList");
+  if (!sheet || !titleEl || !countEl || !listEl) return;
+
+  titleEl.innerText = title;
+  countEl.innerText = `Time memo ${displayedTimeMemos.length}`;
+  listEl.innerHTML = "";
+
+  displayedTimeMemos.forEach((memo) => {
+    const isActiveTimeMemo = isPlayingVideo && Number.isFinite(playingSecond) && Math.abs(memo.time - playingSecond) <= 1;
+    listEl.appendChild(buildTimeMemoRow(videoId, memo, { isActiveTimeMemo }));
+  });
+
+  openedTimeMemoSheetVideoId = videoId;
+  sheet.classList.add("open");
+}
+
+function refreshOpenedTimeMemoSheet() {
+  if (!openedTimeMemoSheetVideoId) return;
+
+  const normalized = normalizeMemoData(openedTimeMemoSheetVideoId, allData[openedTimeMemoSheetVideoId]);
+  if (!normalized) {
+    closeTimeMemoSheet();
+    return;
+  }
+
+  const displayedTimeMemos = normalized.memos
+    .map((memo, index) => ({ ...memo, index }))
+    .filter((memo) => memo.time > 0)
+    .filter((memo) => !currentFilterText || memo.text.toLowerCase().includes(currentFilterText))
+    .sort((a, b) => a.time - b.time);
+
+  openTimeMemoSheet({
+    videoId: openedTimeMemoSheetVideoId,
+    title: normalized.title,
+    displayedTimeMemos,
+    isPlayingVideo: openedTimeMemoSheetVideoId === currentVideoId,
+    playingSecond: openedTimeMemoSheetVideoId === currentVideoId ? currentPlaybackSecond : null
+  });
+}
+
 function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos, isPlayingVideo = false, playingSecond = null }) {
   const memoItem = document.createElement("div");
   memoItem.className = `memo-item${isPlayingVideo ? " playing-video" : ""}`;
 
   const mainMemo = document.createElement("div");
-  mainMemo.className = "main-memo click-target";
-  mainMemo.onclick = () => smartOpenVideo(videoId, { showPopup: true });
+  mainMemo.className = `main-memo click-target${isPlayingVideo ? " is-disabled-click" : ""}`;
+  const openVideoTarget = () => {
+    if (isPlayingVideo) return;
+    openVideoInNewTab(videoId, { showPopup: true });
+  };
+  mainMemo.addEventListener("click", openVideoTarget);
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
@@ -588,51 +663,23 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   mainMemo.appendChild(memoContainer);
   memoItem.appendChild(mainMemo);
 
-  const timeHeader = document.createElement("div");
-  timeHeader.className = "time-memo-header";
-  timeHeader.innerText = `Time memo ${displayedTimeMemos.length}`;
-  memoItem.appendChild(timeHeader);
-
-  const timeMemoList = document.createElement("div");
-  timeMemoList.className = "time-memo-list";
-
-  displayedTimeMemos.forEach((memo) => {
-    const timeMemo = document.createElement("div");
-    const isActiveTimeMemo = isPlayingVideo && Number.isFinite(playingSecond) && Math.abs(memo.time - playingSecond) <= 1;
-    timeMemo.className = `time-memo${isActiveTimeMemo ? " is-active-time" : ""}`;
-
-    const timeContent = document.createElement("div");
-    timeContent.className = "time-content memo-link";
-    timeContent.onclick = (event) => {
+  [thumb, memoContainer, memoTextArea, titleEl, baseTextEl].forEach((element) => {
+    element.addEventListener("click", (event) => {
       event.stopPropagation();
-      smartOpenVideoAtTime(videoId, memo.time);
-    };
-
-    const timeTextArea = document.createElement("div");
-    timeTextArea.className = "memo-text-area-2";
-
-    const timeLabel = document.createElement("span");
-    timeLabel.className = "time-label";
-    timeLabel.innerText = formatTime(memo.time);
-
-    const timeText = document.createElement("span");
-    timeText.className = "memo-title-2";
-    timeText.innerHTML = highlightText(memo.text, currentFilterText);
-
-    timeTextArea.appendChild(timeLabel);
-    timeTextArea.appendChild(timeText);
-    timeContent.appendChild(timeTextArea);
-
-    const actions = document.createElement("div");
-    actions.className = "actions";
-    actions.appendChild(createTimeMemoMenuButton(videoId, memo.index, memo.text));
-
-    timeMemo.appendChild(timeContent);
-    timeMemo.appendChild(actions);
-    timeMemoList.appendChild(timeMemo);
+      openVideoTarget();
+    });
   });
 
-  memoItem.appendChild(timeMemoList);
+  const timeHeader = document.createElement("div");
+  timeHeader.className = "time-memo-header click-target";
+  timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 클릭해서 보기`;
+  memoItem.appendChild(timeHeader);
+
+  timeHeader.onclick = (event) => {
+    event.stopPropagation();
+    openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
+  };
+
   return memoItem;
 }
 
@@ -780,6 +827,8 @@ function renderList(filterText) {
     empty.innerText = `"${currentFilterRaw}"로 등록한 메모가 없어요`;
     list.appendChild(empty);
   }
+
+  refreshOpenedTimeMemoSheet();
 }
 
 function bindEvents() {
@@ -889,6 +938,9 @@ function bindEvents() {
     closeFloatingTimeMenu();
   });
 
+  document.getElementById("timeMemoSheetBackdrop")?.addEventListener("click", closeTimeMemoSheet);
+  document.getElementById("timeMemoSheetCloseBtn")?.addEventListener("click", closeTimeMemoSheet);
+
   window.addEventListener("scroll", closeFloatingTimeMenu, true);
   window.addEventListener("resize", closeFloatingTimeMenu);
 }
@@ -918,26 +970,13 @@ function updateCurrentPlaybackTime() {
   }
 
   chrome.tabs.sendMessage(currentActiveTabId, { type: "GET_TIME" }, (response) => {
-    if (!chrome.runtime.lastError && response && response.time !== undefined) {
-      setCurrentVideoMeta({ title: currentVideoTitleText, timeText: formatTime(response.time) });
-      syncPlayingHighlight(response.time);
+    if (chrome.runtime.lastError || !response || response.time === undefined) {
+      syncPlayingHighlight(null);
       return;
     }
 
-    chrome.scripting.executeScript({ target: { tabId: currentActiveTabId }, files: ["content.js"] }, () => {
-      if (chrome.runtime.lastError) {
-        syncPlayingHighlight(null);
-        return;
-      }
-      chrome.tabs.sendMessage(currentActiveTabId, { type: "GET_TIME" }, (retryResponse) => {
-        if (chrome.runtime.lastError || !retryResponse || retryResponse.time === undefined) {
-          syncPlayingHighlight(null);
-          return;
-        }
-        setCurrentVideoMeta({ title: currentVideoTitleText, timeText: formatTime(retryResponse.time) });
-        syncPlayingHighlight(retryResponse.time);
-      });
-    });
+    setCurrentVideoMeta({ title: currentVideoTitleText, timeText: formatTime(response.time) });
+    syncPlayingHighlight(response.time);
   });
 }
 

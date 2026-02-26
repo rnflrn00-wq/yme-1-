@@ -1,28 +1,13 @@
 const MEMO_DISPLAY_KEY = "__memoDisplayEnabled";
 const MAIN_MEMO_HIDE_MS = 3000;
 
-function getVideoId() {
-  const watchId = new URLSearchParams(location.search).get("v");
-  if (watchId) return watchId;
-
-  const shortsMatch = location.pathname.match(/^\/shorts\/([^/?]+)/);
-  return shortsMatch ? shortsMatch[1] : null;
-}
-
-function removeExistingMemo() {
-  const existing = document.getElementById("yt-memo-box");
-  if (existing) existing.remove();
-  clearMainMemoHideTimer();
-  popupBox = null;
-  timeContainer = null;
-  mainMemoElement = null;
-}
-
 let popupBox = null;
 let timeContainer = null;
 let mainMemoElement = null;
 let mainMemoHideTimer = null;
 let shownBase = false;
+let lastBaseMemoText = null;
+let baseMemoDismissed = false;
 let activeTimes = {};
 let closedByUser = false;
 let displayEnabled = true;
@@ -43,7 +28,6 @@ function removeExistingMemo() {
   popupBox = null;
   timeContainer = null;
   mainMemoElement = null;
-  shownBase = false;
 }
 
 function isFullscreenMode() {
@@ -77,17 +61,20 @@ function clearMainMemoHideTimer() {
   mainMemoHideTimer = null;
 }
 
-function hideMainMemoElement() {
+function hideMainMemoElement(markDismissed = false) {
   if (!mainMemoElement) return;
 
   const target = mainMemoElement;
   target.style.opacity = "0";
   mainMemoElement = null;
+  if (markDismissed) baseMemoDismissed = true;
 
   setTimeout(() => {
     target.remove();
     if (timeContainer && timeContainer.childElementCount === 0) {
-      removeExistingMemo();
+      popupBox?.remove();
+      popupBox = null;
+      timeContainer = null;
     }
   }, 220);
 }
@@ -97,7 +84,7 @@ function scheduleMainMemoHide() {
   if (!mainMemoElement) return;
 
   mainMemoHideTimer = setTimeout(() => {
-    hideMainMemoElement();
+    hideMainMemoElement(true);
     mainMemoHideTimer = null;
   }, MAIN_MEMO_HIDE_MS);
 }
@@ -157,30 +144,6 @@ function createBasePopup(baseText, { autoHideMain = false } = {}) {
   syncPopupVisibilityState();
 }
 
-function clearMainMemoHideTimer() {
-  if (!mainMemoHideTimer) return;
-  clearTimeout(mainMemoHideTimer);
-  mainMemoHideTimer = null;
-}
-
-function scheduleMainMemoHide() {
-  clearMainMemoHideTimer();
-  if (!mainMemoElement) return;
-
-  mainMemoHideTimer = setTimeout(() => {
-    if (mainMemoElement) {
-      mainMemoElement.style.opacity = "0";
-      setTimeout(() => {
-        if (mainMemoElement) {
-          mainMemoElement.remove();
-          mainMemoElement = null;
-        }
-      }, 220);
-    }
-    mainMemoHideTimer = null;
-  }, MAIN_MEMO_HIDE_MS);
-}
-
 function showTimeInsidePopup(text) {
   if (!timeContainer) return;
 
@@ -228,12 +191,19 @@ function getNormalizedMemos(data) {
   return [];
 }
 
-function ensurePopupForMemos(memos) {
+function ensurePopupForMemos(memos, { autoHideMain = false } = {}) {
   const base = memos.find(m => m.time === 0);
-  if (base) {
-    shownBase = true;
-    createBasePopup(base.text);
+  if (!base) return;
+
+  if (!popupBox) {
+    createBasePopup(base.text, { autoHideMain });
+  } else {
+    upsertMainMemoElement(base.text, { autoHideMain });
   }
+
+  shownBase = true;
+  lastBaseMemoText = base.text;
+  if (autoHideMain) baseMemoDismissed = false;
 }
 
 function forceShowMemoPopup(videoId, { autoHideMain = false } = {}) {
@@ -242,6 +212,7 @@ function forceShowMemoPopup(videoId, { autoHideMain = false } = {}) {
     if (!memos.length) return;
 
     closedByUser = false;
+    if (autoHideMain) baseMemoDismissed = false;
     ensurePopupForMemos(memos, { autoHideMain });
   });
 }
@@ -292,12 +263,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function checkMemos() {
   const video = document.querySelector("video");
   if (!video) {
+    shownBase = false;
+    lastBaseMemoText = null;
+    baseMemoDismissed = false;
     removeExistingMemo();
     return;
   }
 
   const videoId = getVideoId();
   if (!videoId) {
+    shownBase = false;
+    lastBaseMemoText = null;
+    baseMemoDismissed = false;
     removeExistingMemo();
     return;
   }
@@ -308,24 +285,33 @@ function checkMemos() {
 
     if (!memos.length) {
       shownBase = false;
+      lastBaseMemoText = null;
+      baseMemoDismissed = false;
       activeTimes = {};
       removeExistingMemo();
       return;
     }
 
     const baseMemo = memos.find((memo) => memo.time === 0);
+    const baseMemoChanged = Boolean(baseMemo) && baseMemo.text !== lastBaseMemoText;
 
     if (baseMemo && !closedByUser) {
-      shownBase = true;
-      if (!popupBox) {
-        createBasePopup(baseMemo.text, { autoHideMain: true });
-      } else if (!mainMemoElement || mainMemoElement.innerText !== baseMemo.text) {
-        upsertMainMemoElement(baseMemo.text, { autoHideMain: true });
+      if ((!shownBase || baseMemoChanged) && (!baseMemoDismissed || baseMemoChanged)) {
+        if (!popupBox) {
+          createBasePopup(baseMemo.text, { autoHideMain: true });
+        } else {
+          upsertMainMemoElement(baseMemo.text, { autoHideMain: true });
+        }
+        shownBase = true;
       }
+
+      lastBaseMemoText = baseMemo.text;
     }
 
-    if (!baseMemo && mainMemoElement) {
-      hideMainMemoElement();
+    if (!baseMemo) {
+      lastBaseMemoText = null;
+      baseMemoDismissed = false;
+      if (mainMemoElement) hideMainMemoElement(false);
       shownBase = false;
     }
 
@@ -335,8 +321,14 @@ function checkMemos() {
       .filter((memo) => memo.time > 0 && Math.abs(memo.time - currentTime) <= 1);
 
     if (!popupBox && !closedByUser && matchedTimeMemos.length > 0) {
-      createBasePopup(baseMemo ? baseMemo.text : "", { autoHideMain: Boolean(baseMemo) });
-      if (baseMemo) shownBase = true;
+      const shouldShowBaseWithTimeMemo = Boolean(baseMemo && (!shownBase || baseMemoChanged));
+      createBasePopup(shouldShowBaseWithTimeMemo ? baseMemo.text : "", {
+        autoHideMain: shouldShowBaseWithTimeMemo
+      });
+      if (shouldShowBaseWithTimeMemo) {
+        shownBase = true;
+        lastBaseMemoText = baseMemo.text;
+      }
     }
 
     memos.forEach((memo, index) => {
@@ -368,6 +360,8 @@ new MutationObserver(() => {
 
   lastUrl = location.href;
   shownBase = false;
+  lastBaseMemoText = null;
+  baseMemoDismissed = false;
   activeTimes = {};
   closedByUser = false;
   removeExistingMemo();
