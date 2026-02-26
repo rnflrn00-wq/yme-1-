@@ -6,6 +6,7 @@ let timeContainer = null;
 let mainMemoElement = null;
 let mainMemoHideTimer = null;
 let shownBase = false;
+let lastBaseMemoText = null;
 let activeTimes = {};
 let closedByUser = false;
 let displayEnabled = true;
@@ -26,7 +27,6 @@ function removeExistingMemo() {
   popupBox = null;
   timeContainer = null;
   mainMemoElement = null;
-  shownBase = false;
 }
 
 function isFullscreenMode() {
@@ -70,7 +70,9 @@ function hideMainMemoElement() {
   setTimeout(() => {
     target.remove();
     if (timeContainer && timeContainer.childElementCount === 0) {
-      removeExistingMemo();
+      popupBox?.remove();
+      popupBox = null;
+      timeContainer = null;
     }
   }, 220);
 }
@@ -189,10 +191,16 @@ function getNormalizedMemos(data) {
 
 function ensurePopupForMemos(memos, { autoHideMain = false } = {}) {
   const base = memos.find(m => m.time === 0);
-  if (base) {
-    shownBase = true;
+  if (!base) return;
+
+  if (!popupBox) {
     createBasePopup(base.text, { autoHideMain });
+  } else {
+    upsertMainMemoElement(base.text, { autoHideMain });
   }
+
+  shownBase = true;
+  lastBaseMemoText = base.text;
 }
 
 function forceShowMemoPopup(videoId, { autoHideMain = false } = {}) {
@@ -251,12 +259,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function checkMemos() {
   const video = document.querySelector("video");
   if (!video) {
+    shownBase = false;
+    lastBaseMemoText = null;
     removeExistingMemo();
     return;
   }
 
   const videoId = getVideoId();
   if (!videoId) {
+    shownBase = false;
+    lastBaseMemoText = null;
     removeExistingMemo();
     return;
   }
@@ -267,24 +279,31 @@ function checkMemos() {
 
     if (!memos.length) {
       shownBase = false;
+      lastBaseMemoText = null;
       activeTimes = {};
       removeExistingMemo();
       return;
     }
 
     const baseMemo = memos.find((memo) => memo.time === 0);
+    const baseMemoChanged = Boolean(baseMemo) && baseMemo.text !== lastBaseMemoText;
 
     if (baseMemo && !closedByUser) {
-      shownBase = true;
-      if (!popupBox) {
-        createBasePopup(baseMemo.text, { autoHideMain: true });
-      } else if (!mainMemoElement || mainMemoElement.innerText !== baseMemo.text) {
-        upsertMainMemoElement(baseMemo.text, { autoHideMain: true });
+      if (!shownBase || baseMemoChanged) {
+        if (!popupBox) {
+          createBasePopup(baseMemo.text, { autoHideMain: true });
+        } else {
+          upsertMainMemoElement(baseMemo.text, { autoHideMain: true });
+        }
+        shownBase = true;
       }
+
+      lastBaseMemoText = baseMemo.text;
     }
 
-    if (!baseMemo && mainMemoElement) {
-      hideMainMemoElement();
+    if (!baseMemo) {
+      lastBaseMemoText = null;
+      if (mainMemoElement) hideMainMemoElement();
       shownBase = false;
     }
 
@@ -294,8 +313,14 @@ function checkMemos() {
       .filter((memo) => memo.time > 0 && Math.abs(memo.time - currentTime) <= 1);
 
     if (!popupBox && !closedByUser && matchedTimeMemos.length > 0) {
-      createBasePopup(baseMemo ? baseMemo.text : "", { autoHideMain: Boolean(baseMemo) });
-      if (baseMemo) shownBase = true;
+      const shouldShowBaseWithTimeMemo = Boolean(baseMemo && (!shownBase || baseMemoChanged));
+      createBasePopup(shouldShowBaseWithTimeMemo ? baseMemo.text : "", {
+        autoHideMain: shouldShowBaseWithTimeMemo
+      });
+      if (shouldShowBaseWithTimeMemo) {
+        shownBase = true;
+        lastBaseMemoText = baseMemo.text;
+      }
     }
 
     memos.forEach((memo, index) => {
@@ -327,6 +352,7 @@ new MutationObserver(() => {
 
   lastUrl = location.href;
   shownBase = false;
+  lastBaseMemoText = null;
   activeTimes = {};
   closedByUser = false;
   removeExistingMemo();
