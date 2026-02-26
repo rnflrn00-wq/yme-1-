@@ -97,14 +97,7 @@ function sendShowPopupMessage(tabId, videoId) {
   if (!tabId) return;
 
   chrome.tabs.sendMessage(tabId, { type: "SHOW_MEMO_POPUP", videoId }, () => {
-    if (!chrome.runtime.lastError) return;
-
-    chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-      if (chrome.runtime.lastError) return;
-      chrome.tabs.sendMessage(tabId, { type: "SHOW_MEMO_POPUP", videoId }, () => {
-        void chrome.runtime.lastError;
-      });
-    });
+    void chrome.runtime.lastError;
   });
 }
 
@@ -122,19 +115,9 @@ function seekVideoInTab(tabId, time, fallbackUrl) {
   if (!tabId) return;
 
   const safeTime = Number.isFinite(time) ? Math.max(0, Math.floor(time)) : 0;
-  const sendSeek = () => {
-    chrome.tabs.sendMessage(tabId, { type: "SEEK_TO", time: safeTime }, (response) => {
-      if (!chrome.runtime.lastError && response && response.ok) return;
-      chrome.tabs.update(tabId, { url: fallbackUrl, active: true });
-    });
-  };
-
-  chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-    if (chrome.runtime.lastError) {
-      chrome.tabs.update(tabId, { url: fallbackUrl, active: true });
-      return;
-    }
-    sendSeek();
+  chrome.tabs.sendMessage(tabId, { type: "SEEK_TO", time: safeTime }, (response) => {
+    if (!chrome.runtime.lastError && response && response.ok) return;
+    chrome.tabs.update(tabId, { url: fallbackUrl, active: true });
   });
 }
 
@@ -364,26 +347,12 @@ function withActiveYoutubeTab(callback) {
     }
 
     chrome.tabs.sendMessage(tabId, { type: "GET_TIME" }, (response) => {
-      if (!chrome.runtime.lastError && response && response.time !== undefined) {
-        callback(Math.max(0, Math.floor(response.time)));
+      if (chrome.runtime.lastError || !response || response.time === undefined) {
+        callback(null);
         return;
       }
 
-      chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-        if (chrome.runtime.lastError) {
-          callback(null);
-          return;
-        }
-
-        chrome.tabs.sendMessage(tabId, { type: "GET_TIME" }, (retryResponse) => {
-          if (chrome.runtime.lastError || !retryResponse || retryResponse.time === undefined) {
-            callback(null);
-            return;
-          }
-
-          callback(Math.max(0, Math.floor(retryResponse.time)));
-        });
-      });
+      callback(Math.max(0, Math.floor(response.time)));
     });
   });
 }
@@ -1001,26 +970,13 @@ function updateCurrentPlaybackTime() {
   }
 
   chrome.tabs.sendMessage(currentActiveTabId, { type: "GET_TIME" }, (response) => {
-    if (!chrome.runtime.lastError && response && response.time !== undefined) {
-      setCurrentVideoMeta({ title: currentVideoTitleText, timeText: formatTime(response.time) });
-      syncPlayingHighlight(response.time);
+    if (chrome.runtime.lastError || !response || response.time === undefined) {
+      syncPlayingHighlight(null);
       return;
     }
 
-    chrome.scripting.executeScript({ target: { tabId: currentActiveTabId }, files: ["content.js"] }, () => {
-      if (chrome.runtime.lastError) {
-        syncPlayingHighlight(null);
-        return;
-      }
-      chrome.tabs.sendMessage(currentActiveTabId, { type: "GET_TIME" }, (retryResponse) => {
-        if (chrome.runtime.lastError || !retryResponse || retryResponse.time === undefined) {
-          syncPlayingHighlight(null);
-          return;
-        }
-        setCurrentVideoMeta({ title: currentVideoTitleText, timeText: formatTime(retryResponse.time) });
-        syncPlayingHighlight(retryResponse.time);
-      });
-    });
+    setCurrentVideoMeta({ title: currentVideoTitleText, timeText: formatTime(response.time) });
+    syncPlayingHighlight(response.time);
   });
 }
 
