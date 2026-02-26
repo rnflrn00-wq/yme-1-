@@ -155,6 +155,21 @@ function smartOpenVideo(videoId, { showPopup = false } = {}) {
   });
 }
 
+function openVideoInNewTab(videoId, { showPopup = false } = {}) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  chrome.tabs.create({ url, active: true }, (createdTab) => {
+    if (chrome.runtime.lastError) {
+      chrome.windows.create({ url, focused: true });
+      return;
+    }
+
+    if (showPopup && createdTab?.id) {
+      sendShowPopupMessage(createdTab.id, videoId);
+    }
+  });
+}
+
+
 function smartOpenVideoAtTime(videoId, time) {
   chrome.tabs.query({}, (tabs) => {
     const existingTab = findYoutubeTabByVideoId(tabs, videoId);
@@ -626,6 +641,8 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
 
   const mainMemo = document.createElement("div");
   mainMemo.className = "main-memo click-target";
+  const openVideoTarget = () => openVideoInNewTab(videoId, { showPopup: true });
+  mainMemo.addEventListener("click", openVideoTarget);
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
@@ -673,6 +690,13 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   mainMemo.appendChild(thumb);
   mainMemo.appendChild(memoContainer);
   memoItem.appendChild(mainMemo);
+
+  [thumb, memoContainer, memoTextArea, titleEl, baseTextEl].forEach((element) => {
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openVideoTarget();
+    });
+  });
 
   const timeHeader = document.createElement("div");
   timeHeader.className = "time-memo-header click-target";
