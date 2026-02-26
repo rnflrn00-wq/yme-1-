@@ -1,4 +1,5 @@
 const MEMO_DISPLAY_KEY = "__memoDisplayEnabled";
+const RECENT_HISTORY_KEY = "__recentMemoHistory";
 const MAIN_MEMO_HIDE_MS = 3000;
 
 let popupBox = null;
@@ -78,9 +79,9 @@ function ensureCoachMarkStyle() {
       color: #8ab4f8;
     }
 
-    .yt-memo-coach__input {
+     .yt-memo-coach__input {
       min-height: 64px;
-      resize: vertical;
+      resize: none;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.08);
@@ -113,6 +114,23 @@ function ensureCoachMarkStyle() {
     .yt-memo-coach__btn--save {
       color: #111;
       background: #8ab4f8;
+    }
+
+    .yt-memo-player-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 28px;
+      background-color: rgba(0, 0, 0, 0.3);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 4px;
+    }
+
+    .yt-memo-player-btn__icon {
+      font-size: 18px;
+      line-height: 1;
+      pointer-events: none;
     }
   `;
   document.head.appendChild(style);
@@ -160,9 +178,24 @@ function saveTimeMemoFromCoach(time, memoText) {
       ]
     };
 
-    chrome.storage.local.set({ [videoId]: nextData }, () => {
-      checkMemos();
-      showTimeInsidePopup(`⏱ ${memoText.trim()}`);
+    chrome.storage.local.get([RECENT_HISTORY_KEY], (historyResult) => {
+      const history = Array.isArray(historyResult[RECENT_HISTORY_KEY]) ? historyResult[RECENT_HISTORY_KEY] : [];
+      history.unshift({
+        videoId,
+        title: nextData.title,
+        thumbnail: nextData.thumbnail,
+        time,
+        text: memoText.trim(),
+        createdAt: Date.now()
+      });
+
+      chrome.storage.local.set({
+        [videoId]: nextData,
+        [RECENT_HISTORY_KEY]: history.slice(0, 50)
+      }, () => {
+        checkMemos();
+        showTimeInsidePopup(`⏱ ${memoText.trim()}`);
+      });
     });
   });
 }
@@ -185,6 +218,13 @@ function openCoachMark(button, time) {
   const input = document.createElement("textarea");
   input.className = "yt-memo-coach__input";
   input.placeholder = "메모를 입력하세요";
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault();
+      saveTimeMemoFromCoach(time, input.value);
+      closeCoachMark();
+    }
+  });
 
   const actions = document.createElement("div");
   actions.className = "yt-memo-coach__actions";
@@ -196,7 +236,7 @@ function openCoachMark(button, time) {
 
   const saveBtn = document.createElement("button");
   saveBtn.className = "yt-memo-coach__btn yt-memo-coach__btn--save";
-  saveBtn.innerText = "저장";
+  saveBtn.innerText = "저장(shift+enter)";
   saveBtn.addEventListener("click", () => {
     saveTimeMemoFromCoach(time, input.value);
     closeCoachMark();
@@ -230,11 +270,11 @@ function ensureTimeMemoControlButton() {
   if (controlButton && controlButton.isConnected) return;
 
   const button = document.createElement("button");
-  button.className = "ytp-button";
+  button.className = "ytp-button yt-memo-player-btn";
   button.type = "button";
   button.setAttribute("aria-label", "시간 메모 추가");
   button.setAttribute("title", "시간 메모 추가");
-  button.innerText = "📝";
+  button.innerHTML = '<span class="yt-memo-player-btn__icon">📝</span>';
 
   button.addEventListener("click", (event) => {
     event.preventDefault();
