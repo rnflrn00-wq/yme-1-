@@ -503,6 +503,7 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
   const maxTop = window.innerHeight - menu.offsetHeight - 8;
   menu.style.left = `${Math.max(8, Math.min(anchorRect.right - menu.offsetWidth, maxLeft))}px`;
   menu.style.top = `${Math.max(8, Math.min(anchorRect.bottom + 6, maxTop))}px`;
+  menu.style.zIndex = document.getElementById("timeMemoSheet")?.classList.contains("open") ? "20002" : "20001";
 }
 
 function createTimeMemoMenuButton(videoId, memoIndex, memoText) {

@@ -395,7 +395,7 @@ body.list-page-open {
 
 .floating-time-menu {
   position: fixed;
-  z-index: 99999;
+  z-index: 20001;
   background: #fff;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);
@@ -441,6 +441,7 @@ body.list-page-open {
 .time-memo-sheet__backdrop {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: rgba(0,0,0,0.35);
 }
 
@@ -449,6 +450,7 @@ body.list-page-open {
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 2;
   max-height: 65%;
   background: #fff;
   border-top-left-radius: 10px;
