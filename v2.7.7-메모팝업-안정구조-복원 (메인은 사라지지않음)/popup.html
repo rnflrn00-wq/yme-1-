@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="styles/popup.css">
+</head>
+
+<body>
+  <header class="popup-header">
+    <div class="header-title">YME 메모</div>
+    <button id="goPage3Btn" class="ds-btn ds-btn--ghost ds-btn--icon" title="설정 페이지로 이동">⚙️ 설정</button>
+  </header>
+
+  <div class="page-container">
+    <section id="page-main" class="page active">
+      <div class="top-area">
+        <div class="memo-write">
+          <div class="toggle-row">
+            <span>플레이어 메모 표시</span>
+            <label class="switch">
+              <input type="checkbox" id="memoVisibleToggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div id="currentVideo" class="current-video-meta">
+            <span id="currentVideoTitle" class="current-video-title">영상 정보를 불러오는 중...</span>
+            <span id="currentVideoTime" class="current-video-time">00:00</span>
+          </div>
+          <textarea id="memoInput" class="ds-input ds-input--textarea" placeholder="메모 작성"></textarea>
+        </div>
+
+        <div class="button-row">
+          <button id="saveBaseMemoBtn" class="ds-btn ds-btn--primary">기본 메모 저장</button>
+          <button id="saveTimeBtn" class="ds-btn ds-btn--secondary">현재 시간에 저장 (shift+enter)</button>
+        </div>
+      </div>
+
+      <hr class="section-divider" />
+
+      <button id="goPage2Btn" class="ds-btn ds-btn--primary page-move-btn">메모 리스트</button>
+
+      <section class="recent-section">
+        <div class="recent-title-row"><div class="recent-title">최근 등록한 메모 (최대 5개)</div><button id="clearRecentHistoryBtn" class="ds-btn ds-btn--ghost ds-btn--xs">기록 삭제</button></div>
+        <div id="recentMemoList" class="recent-list"></div>
+      </section>
+    </section>
+
+    <section id="page-list" class="page">
+      <div class="sub-header">
+        <button id="backFromListBtn" class="ds-btn ds-btn--ghost">← 뒤로가기</button>
+        <h3>메모 리스트</h3>
+      </div>
+
+      <div class="search">
+        <div class="search-input-wrap">
+          <input type="text" id="searchInput" class="ds-input" placeholder="제목/채널/메모 검색" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button id="clearSearchBtn" class="clear-search-btn" aria-label="검색어 지우기" title="검색어 지우기">✕</button>
+        </div>
+        <!-- <ul id="searchAutocomplete" class="autocomplete-list"></ul> -->
+      </div>
+
+      <div class="list-wrapper">
+        <div id="memoList"></div>
+      </div>
+    </section>
+
+    <section id="page-settings" class="page">
+      <div class="sub-header">
+        <button id="backFromSettingsBtn" class="ds-btn ds-btn--ghost">← 뒤로가기</button>
+        <h3>설정</h3>
+      </div>
+
+      <div class="settings-actions">
+        <button id="backupBtn" class="ds-btn ds-btn--ghost">백업(JSON)</button>
+        <button id="clearAllDataBtn" class="ds-btn ds-btn--danger">데이터 삭제</button>
+        <label for="restoreInput" class="file-btn ds-btn ds-btn--ghost">복원(JSON)</label>
+        <input id="restoreInput" type="file" accept="application/json" />
+      </div>
+    </section>
+  </div>
+
+  <div id="customModal" class="custom-modal">
+    <div class="custom-modal-panel">
+      <div id="customModalMessage" class="custom-modal-message"></div>
+      <input id="customModalInput" class="ds-input custom-modal-input" type="text" />
+      <div class="custom-modal-actions">
+        <button id="customModalCancelBtn" class="ds-btn ds-btn--ghost">취소</button>
+        <button id="customModalConfirmBtn" class="ds-btn ds-btn--primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="popupResizeHandle" class="popup-resize-handle" title="드래그해서 팝업 크기 조절"></div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
