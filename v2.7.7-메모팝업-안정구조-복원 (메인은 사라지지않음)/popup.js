@@ -155,6 +155,14 @@ function smartOpenVideo(videoId, { showPopup = false } = {}) {
   });
 }
 
+function openVideoInNewTab(videoId, { showPopup = false } = {}) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  chrome.tabs.create({ url }, (createdTab) => {
+    if (showPopup) sendShowPopupMessage(createdTab?.id, videoId);
+  });
+}
+
+
 function smartOpenVideoAtTime(videoId, time) {
   chrome.tabs.query({}, (tabs) => {
     const existingTab = findYoutubeTabByVideoId(tabs, videoId);
@@ -626,6 +634,7 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
 
   const mainMemo = document.createElement("div");
   mainMemo.className = "main-memo click-target";
+  mainMemo.onclick = () => openVideoInNewTab(videoId, { showPopup: true });
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
