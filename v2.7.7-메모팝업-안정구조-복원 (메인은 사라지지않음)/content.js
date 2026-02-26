@@ -12,6 +12,15 @@ let activeTimes = {};
 let closedByUser = false;
 let displayEnabled = true;
 let lastMouse = { x: 20, y: 20 };
+let controlButton = null;
+let coachMark = null;
+
+function formatTime(seconds) {
+  const safeSeconds = Math.max(0, Number.isFinite(seconds) ? Math.floor(seconds) : 0);
+  const m = Math.floor(safeSeconds / 60);
+  const s = safeSeconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
 function getVideoId() {
   const watchId = new URLSearchParams(location.search).get("v");
@@ -28,6 +37,216 @@ function removeExistingMemo() {
   popupBox = null;
   timeContainer = null;
   mainMemoElement = null;
+}
+
+function closeCoachMark() {
+  if (!coachMark) return;
+  coachMark.remove();
+  coachMark = null;
+}
+
+function ensureCoachMarkStyle() {
+  if (document.getElementById("yt-memo-coach-style")) return;
+
+  const style = document.createElement("style");
+  style.id = "yt-memo-coach-style";
+  style.textContent = `
+    .yt-memo-coach {
+      position: fixed;
+      z-index: 2147483647;
+      width: 260px;
+      background: rgba(28, 28, 28, 0.96);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 10px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.38);
+      color: #fff;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-family: Roboto, Arial, sans-serif;
+    }
+
+    .yt-memo-coach__title {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .yt-memo-coach__time {
+      font-size: 12px;
+      color: #8ab4f8;
+    }
+
+    .yt-memo-coach__input {
+      min-height: 64px;
+      resize: vertical;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      padding: 8px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .yt-memo-coach__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .yt-memo-coach__btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .yt-memo-coach__btn--cancel {
+      color: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.12);
+    }
+
+    .yt-memo-coach__btn--save {
+      color: #111;
+      background: #8ab4f8;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function getCurrentVideoMeta(videoId) {
+  const title = document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() || videoId;
+  const channel = document.querySelector("#channel-name a")?.textContent?.trim() || "Unknown Channel";
+  return {
+    title,
+    channel,
+    thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+  };
+}
+
+function saveTimeMemoFromCoach(time, memoText) {
+  const videoId = getVideoId();
+  if (!videoId || !memoText.trim()) return;
+
+  chrome.storage.local.get([videoId], (result) => {
+    const raw = result[videoId];
+    const currentMemos = Array.isArray(raw?.memos)
+      ? raw.memos.filter((memo) => memo && typeof memo.text === "string")
+      : getNormalizedMemos(raw);
+    const timeMemos = currentMemos.filter((memo) => Number(memo.time) > 0);
+    const baseMemo = currentMemos.find((memo) => Number(memo.time) === 0);
+    const meta = getCurrentVideoMeta(videoId);
+
+    const nextData = {
+      title: raw?.title || meta.title,
+      channel: raw?.channel || meta.channel,
+      thumbnail: raw?.thumbnail || meta.thumbnail,
+      memos: [
+        ...(baseMemo ? [{
+          time: Number.isFinite(baseMemo.time) ? Math.max(0, Math.floor(baseMemo.time)) : 0,
+          text: baseMemo.text,
+          createdAt: Number.isFinite(baseMemo.createdAt) ? baseMemo.createdAt : Date.now() - 1
+        }] : []),
+        ...timeMemos.map((memo) => ({
+          time: Number.isFinite(memo.time) ? Math.max(0, Math.floor(memo.time)) : 0,
+          text: memo.text,
+          createdAt: Number.isFinite(memo.createdAt) ? memo.createdAt : Date.now() - 1
+        })),
+        { time, text: memoText.trim(), createdAt: Date.now() }
+      ]
+    };
+
+    chrome.storage.local.set({ [videoId]: nextData }, () => {
+      checkMemos();
+      showTimeInsidePopup(`⏱ ${memoText.trim()}`);
+    });
+  });
+}
+
+function openCoachMark(button, time) {
+  ensureCoachMarkStyle();
+  closeCoachMark();
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "yt-memo-coach";
+
+  const title = document.createElement("div");
+  title.className = "yt-memo-coach__title";
+  title.innerText = "시간 메모";
+
+  const timeLabel = document.createElement("div");
+  timeLabel.className = "yt-memo-coach__time";
+  timeLabel.innerText = `기록 시간: ${formatTime(time)}`;
+
+  const input = document.createElement("textarea");
+  input.className = "yt-memo-coach__input";
+  input.placeholder = "메모를 입력하세요";
+
+  const actions = document.createElement("div");
+  actions.className = "yt-memo-coach__actions";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "yt-memo-coach__btn yt-memo-coach__btn--cancel";
+  cancelBtn.innerText = "닫기";
+  cancelBtn.addEventListener("click", closeCoachMark);
+
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "yt-memo-coach__btn yt-memo-coach__btn--save";
+  saveBtn.innerText = "저장";
+  saveBtn.addEventListener("click", () => {
+    saveTimeMemoFromCoach(time, input.value);
+    closeCoachMark();
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  wrapper.appendChild(title);
+  wrapper.appendChild(timeLabel);
+  wrapper.appendChild(input);
+  wrapper.appendChild(actions);
+
+  document.body.appendChild(wrapper);
+  coachMark = wrapper;
+
+  const rect = button.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.right - wrapper.offsetWidth, window.innerWidth - wrapper.offsetWidth - 8));
+  const top = Math.max(8, rect.top - wrapper.offsetHeight - 10);
+  wrapper.style.left = `${left}px`;
+  wrapper.style.top = `${top}px`;
+  input.focus();
+}
+
+function ensureTimeMemoControlButton() {
+  if (!/youtube\.com$/.test(location.hostname)) return;
+
+  const controls = document.querySelector(".ytp-left-controls");
+  const timeDisplay = controls?.querySelector(".ytp-time-display");
+  if (!controls || !timeDisplay) return;
+
+  if (controlButton && controlButton.isConnected) return;
+
+  const button = document.createElement("button");
+  button.className = "ytp-button";
+  button.type = "button";
+  button.setAttribute("aria-label", "시간 메모 추가");
+  button.setAttribute("title", "시간 메모 추가");
+  button.innerText = "📝";
+
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const video = document.querySelector("video");
+    if (!video) return;
+    const currentTime = Math.floor(video.currentTime || 0);
+    openCoachMark(button, currentTime);
+  });
+
+  timeDisplay.insertAdjacentElement("afterend", button);
+  controlButton = button;
 }
 
 function isFullscreenMode() {
@@ -261,6 +480,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 function checkMemos() {
+  ensureTimeMemoControlButton();
+
   const video = document.querySelector("video");
   if (!video) {
     shownBase = false;
@@ -367,6 +588,7 @@ new MutationObserver(() => {
   removeExistingMemo();
 
   setTimeout(() => {
+    closeCoachMark();
     checkMemos();
     const currentId = getVideoId();
     if (currentId && displayEnabled) {
@@ -383,4 +605,20 @@ document.addEventListener("mousemove", (event) => {
 
 document.addEventListener("fullscreenchange", () => {
   syncPopupVisibilityState();
+  if (isFullscreenMode()) closeCoachMark();
+});
+
+document.addEventListener("click", (event) => {
+  if (!coachMark) return;
+  if (coachMark.contains(event.target) || controlButton?.contains(event.target)) return;
+  closeCoachMark();
+});
+
+window.addEventListener("resize", () => {
+  if (!coachMark || !controlButton) return;
+  const rect = controlButton.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.right - coachMark.offsetWidth, window.innerWidth - coachMark.offsetWidth - 8));
+  const top = Math.max(8, rect.top - coachMark.offsetHeight - 10);
+  coachMark.style.left = `${left}px`;
+  coachMark.style.top = `${top}px`;
 });

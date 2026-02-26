@@ -466,8 +466,10 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
 
   closeFloatingTimeMenu();
 
+  const sheet = document.getElementById("timeMemoSheet");
+  const isSheetOpen = sheet?.classList.contains("open");
   const menu = document.createElement("div");
-  menu.className = "floating-time-menu";
+  menu.className = `floating-time-menu${isSheetOpen ? " floating-time-menu--sheet" : ""}`;
 
   const editBtn = createActionButton({
     label: "수정",
@@ -495,15 +497,20 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
 
   menu.appendChild(editBtn);
   menu.appendChild(deleteBtn);
-  document.body.appendChild(menu);
+
+  const host = isSheetOpen && sheet ? sheet : document.body;
+  host.appendChild(menu);
   floatingTimeMenu = menu;
   floatingMenuOwnerKey = ownerKey;
 
   const maxLeft = window.innerWidth - menu.offsetWidth - 8;
   const maxTop = window.innerHeight - menu.offsetHeight - 8;
-  menu.style.left = `${Math.max(8, Math.min(anchorRect.right - menu.offsetWidth, maxLeft))}px`;
-  menu.style.top = `${Math.max(8, Math.min(anchorRect.bottom + 6, maxTop))}px`;
-  menu.style.zIndex = document.getElementById("timeMemoSheet")?.classList.contains("open") ? "20002" : "20001";
+  const left = Math.max(8, Math.min(anchorRect.right - menu.offsetWidth, maxLeft));
+  const top = Math.max(8, Math.min(anchorRect.bottom + 6, maxTop));
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.zIndex = isSheetOpen ? "3" : "2147483647";
 }
 
 function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
@@ -520,6 +527,7 @@ function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
 }
 
 function closeTimeMemoSheet() {
+  closeFloatingTimeMenu();
   document.getElementById("timeMemoSheet")?.classList.remove("open");
   const list = document.getElementById("timeMemoSheetList");
   if (list) list.innerHTML = "";
@@ -562,6 +570,7 @@ function buildTimeMemoRow(videoId, memo, { isActiveTimeMemo = false } = {}) {
 }
 
 function openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo = false, playingSecond = null }) {
+  closeFloatingTimeMenu();
   const sheet = document.getElementById("timeMemoSheet");
   const titleEl = document.getElementById("timeMemoSheetTitle");
   const countEl = document.getElementById("timeMemoSheetCount");

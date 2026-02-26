@@ -395,7 +395,7 @@ body.list-page-open {
 
 .floating-time-menu {
   position: fixed;
-  z-index: 20001;
+  z-index: 2147483647;
   background: #fff;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);
@@ -406,6 +406,12 @@ body.list-page-open {
   gap: 4px;
 }
 
+
+
+.floating-time-menu--sheet {
+  position: absolute;
+  z-index: 3;
+}
 .floating-time-menu .menu-item {
   min-width: 54px;
   text-align: center;
