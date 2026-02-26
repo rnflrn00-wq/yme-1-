@@ -1,23 +1,6 @@
 const MEMO_DISPLAY_KEY = "__memoDisplayEnabled";
 const MAIN_MEMO_HIDE_MS = 3000;
 
-function getVideoId() {
-  const watchId = new URLSearchParams(location.search).get("v");
-  if (watchId) return watchId;
-
-  const shortsMatch = location.pathname.match(/^\/shorts\/([^/?]+)/);
-  return shortsMatch ? shortsMatch[1] : null;
-}
-
-function removeExistingMemo() {
-  const existing = document.getElementById("yt-memo-box");
-  if (existing) existing.remove();
-  clearMainMemoHideTimer();
-  popupBox = null;
-  timeContainer = null;
-  mainMemoElement = null;
-}
-
 let popupBox = null;
 let timeContainer = null;
 let mainMemoElement = null;
@@ -157,30 +140,6 @@ function createBasePopup(baseText, { autoHideMain = false } = {}) {
   syncPopupVisibilityState();
 }
 
-function clearMainMemoHideTimer() {
-  if (!mainMemoHideTimer) return;
-  clearTimeout(mainMemoHideTimer);
-  mainMemoHideTimer = null;
-}
-
-function scheduleMainMemoHide() {
-  clearMainMemoHideTimer();
-  if (!mainMemoElement) return;
-
-  mainMemoHideTimer = setTimeout(() => {
-    if (mainMemoElement) {
-      mainMemoElement.style.opacity = "0";
-      setTimeout(() => {
-        if (mainMemoElement) {
-          mainMemoElement.remove();
-          mainMemoElement = null;
-        }
-      }, 220);
-    }
-    mainMemoHideTimer = null;
-  }, MAIN_MEMO_HIDE_MS);
-}
-
 function showTimeInsidePopup(text) {
   if (!timeContainer) return;
 
@@ -228,11 +187,11 @@ function getNormalizedMemos(data) {
   return [];
 }
 
-function ensurePopupForMemos(memos) {
+function ensurePopupForMemos(memos, { autoHideMain = false } = {}) {
   const base = memos.find(m => m.time === 0);
   if (base) {
     shownBase = true;
-    createBasePopup(base.text);
+    createBasePopup(base.text, { autoHideMain });
   }
 }
 
