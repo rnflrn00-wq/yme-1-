@@ -679,10 +679,6 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 클릭해서 보기`;
   memoItem.appendChild(timeHeader);
 
-  mainMemo.onclick = () => {
-    openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
-  };
-
   timeHeader.onclick = (event) => {
     event.stopPropagation();
     openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
