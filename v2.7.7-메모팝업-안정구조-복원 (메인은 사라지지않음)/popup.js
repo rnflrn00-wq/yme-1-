@@ -626,7 +626,6 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
 
   const mainMemo = document.createElement("div");
   mainMemo.className = "main-memo click-target";
-  mainMemo.onclick = () => smartOpenVideo(videoId, { showPopup: true });
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
