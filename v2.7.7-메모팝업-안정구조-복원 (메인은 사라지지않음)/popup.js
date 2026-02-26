@@ -640,8 +640,11 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   memoItem.className = `memo-item${isPlayingVideo ? " playing-video" : ""}`;
 
   const mainMemo = document.createElement("div");
-  mainMemo.className = "main-memo click-target";
-  const openVideoTarget = () => openVideoInNewTab(videoId, { showPopup: true });
+  mainMemo.className = `main-memo click-target${isPlayingVideo ? " is-disabled-click" : ""}`;
+  const openVideoTarget = () => {
+    if (isPlayingVideo) return;
+    openVideoInNewTab(videoId, { showPopup: true });
+  };
   mainMemo.addEventListener("click", openVideoTarget);
 
   const thumb = document.createElement("img");

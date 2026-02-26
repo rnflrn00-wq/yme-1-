@@ -298,7 +298,7 @@ body.list-page-open {
 
  .memo-item .time-memo-header {
   width: 100%;
-  padding: 4px 10px;
+  padding: 2px 10px;
   font-size: var(--font-size-xs);
   color: #666;
 }
@@ -528,4 +528,9 @@ body.list-page-open {
 
 .time-memo-sheet__list .time-memo.is-active-time {
   background: #dbeafe;
+}
+
+
+.memo-item .main-memo.is-disabled-click {
+  cursor: default;
 }
