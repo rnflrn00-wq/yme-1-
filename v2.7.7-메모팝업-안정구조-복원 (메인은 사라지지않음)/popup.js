@@ -626,6 +626,7 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
 
   const mainMemo = document.createElement("div");
   mainMemo.className = "main-memo click-target";
+  mainMemo.onclick = () => smartOpenVideo(videoId, { showPopup: true });
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
@@ -678,10 +679,6 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   timeHeader.className = "time-memo-header click-target";
   timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 클릭해서 보기`;
   memoItem.appendChild(timeHeader);
-
-  mainMemo.onclick = () => {
-    openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
-  };
 
   timeHeader.onclick = (event) => {
     event.stopPropagation();
