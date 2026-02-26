@@ -14,6 +14,7 @@ let currentVideoTitleText = "";
 let playbackTimer = null;
 let floatingMenuOwnerKey = null;
 let currentPlaybackSecond = null;
+let openedTimeMemoSheetVideoId = null;
 
 function getVideoIdFromUrl(url) {
   if (!url) return null;
@@ -533,13 +534,98 @@ function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
   });
 }
 
+function closeTimeMemoSheet() {
+  document.getElementById("timeMemoSheet")?.classList.remove("open");
+  const list = document.getElementById("timeMemoSheetList");
+  if (list) list.innerHTML = "";
+  openedTimeMemoSheetVideoId = null;
+}
+
+function buildTimeMemoRow(videoId, memo, { isActiveTimeMemo = false } = {}) {
+  const timeMemo = document.createElement("div");
+  timeMemo.className = `time-memo${isActiveTimeMemo ? " is-active-time" : ""}`;
+
+  const timeContent = document.createElement("div");
+  timeContent.className = "time-content memo-link";
+  timeContent.onclick = (event) => {
+    event.stopPropagation();
+    smartOpenVideoAtTime(videoId, memo.time);
+  };
+
+  const timeTextArea = document.createElement("div");
+  timeTextArea.className = "memo-text-area-2";
+
+  const timeLabel = document.createElement("span");
+  timeLabel.className = "time-label";
+  timeLabel.innerText = formatTime(memo.time);
+
+  const timeText = document.createElement("span");
+  timeText.className = "memo-title-2";
+  timeText.innerHTML = highlightText(memo.text, currentFilterText);
+
+  timeTextArea.appendChild(timeLabel);
+  timeTextArea.appendChild(timeText);
+  timeContent.appendChild(timeTextArea);
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  actions.appendChild(createTimeMemoMenuButton(videoId, memo.index, memo.text));
+
+  timeMemo.appendChild(timeContent);
+  timeMemo.appendChild(actions);
+  return timeMemo;
+}
+
+function openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo = false, playingSecond = null }) {
+  const sheet = document.getElementById("timeMemoSheet");
+  const titleEl = document.getElementById("timeMemoSheetTitle");
+  const countEl = document.getElementById("timeMemoSheetCount");
+  const listEl = document.getElementById("timeMemoSheetList");
+  if (!sheet || !titleEl || !countEl || !listEl) return;
+
+  titleEl.innerText = title;
+  countEl.innerText = `Time memo ${displayedTimeMemos.length}`;
+  listEl.innerHTML = "";
+
+  displayedTimeMemos.forEach((memo) => {
+    const isActiveTimeMemo = isPlayingVideo && Number.isFinite(playingSecond) && Math.abs(memo.time - playingSecond) <= 1;
+    listEl.appendChild(buildTimeMemoRow(videoId, memo, { isActiveTimeMemo }));
+  });
+
+  openedTimeMemoSheetVideoId = videoId;
+  sheet.classList.add("open");
+}
+
+function refreshOpenedTimeMemoSheet() {
+  if (!openedTimeMemoSheetVideoId) return;
+
+  const normalized = normalizeMemoData(openedTimeMemoSheetVideoId, allData[openedTimeMemoSheetVideoId]);
+  if (!normalized) {
+    closeTimeMemoSheet();
+    return;
+  }
+
+  const displayedTimeMemos = normalized.memos
+    .map((memo, index) => ({ ...memo, index }))
+    .filter((memo) => memo.time > 0)
+    .filter((memo) => !currentFilterText || memo.text.toLowerCase().includes(currentFilterText))
+    .sort((a, b) => a.time - b.time);
+
+  openTimeMemoSheet({
+    videoId: openedTimeMemoSheetVideoId,
+    title: normalized.title,
+    displayedTimeMemos,
+    isPlayingVideo: openedTimeMemoSheetVideoId === currentVideoId,
+    playingSecond: openedTimeMemoSheetVideoId === currentVideoId ? currentPlaybackSecond : null
+  });
+}
+
 function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos, isPlayingVideo = false, playingSecond = null }) {
   const memoItem = document.createElement("div");
   memoItem.className = `memo-item${isPlayingVideo ? " playing-video" : ""}`;
 
   const mainMemo = document.createElement("div");
   mainMemo.className = "main-memo click-target";
-  mainMemo.onclick = () => smartOpenVideo(videoId, { showPopup: true });
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
@@ -589,50 +675,19 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   memoItem.appendChild(mainMemo);
 
   const timeHeader = document.createElement("div");
-  timeHeader.className = "time-memo-header";
-  timeHeader.innerText = `Time memo ${displayedTimeMemos.length}`;
+  timeHeader.className = "time-memo-header click-target";
+  timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 클릭해서 보기`;
   memoItem.appendChild(timeHeader);
 
-  const timeMemoList = document.createElement("div");
-  timeMemoList.className = "time-memo-list";
+  mainMemo.onclick = () => {
+    openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
+  };
 
-  displayedTimeMemos.forEach((memo) => {
-    const timeMemo = document.createElement("div");
-    const isActiveTimeMemo = isPlayingVideo && Number.isFinite(playingSecond) && Math.abs(memo.time - playingSecond) <= 1;
-    timeMemo.className = `time-memo${isActiveTimeMemo ? " is-active-time" : ""}`;
+  timeHeader.onclick = (event) => {
+    event.stopPropagation();
+    openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
+  };
 
-    const timeContent = document.createElement("div");
-    timeContent.className = "time-content memo-link";
-    timeContent.onclick = (event) => {
-      event.stopPropagation();
-      smartOpenVideoAtTime(videoId, memo.time);
-    };
-
-    const timeTextArea = document.createElement("div");
-    timeTextArea.className = "memo-text-area-2";
-
-    const timeLabel = document.createElement("span");
-    timeLabel.className = "time-label";
-    timeLabel.innerText = formatTime(memo.time);
-
-    const timeText = document.createElement("span");
-    timeText.className = "memo-title-2";
-    timeText.innerHTML = highlightText(memo.text, currentFilterText);
-
-    timeTextArea.appendChild(timeLabel);
-    timeTextArea.appendChild(timeText);
-    timeContent.appendChild(timeTextArea);
-
-    const actions = document.createElement("div");
-    actions.className = "actions";
-    actions.appendChild(createTimeMemoMenuButton(videoId, memo.index, memo.text));
-
-    timeMemo.appendChild(timeContent);
-    timeMemo.appendChild(actions);
-    timeMemoList.appendChild(timeMemo);
-  });
-
-  memoItem.appendChild(timeMemoList);
   return memoItem;
 }
 
@@ -780,6 +835,8 @@ function renderList(filterText) {
     empty.innerText = `"${currentFilterRaw}"로 등록한 메모가 없어요`;
     list.appendChild(empty);
   }
+
+  refreshOpenedTimeMemoSheet();
 }
 
 function bindEvents() {
@@ -888,6 +945,9 @@ function bindEvents() {
     if (event.target.closest(".menu-btn") || event.target.closest(".floating-time-menu")) return;
     closeFloatingTimeMenu();
   });
+
+  document.getElementById("timeMemoSheetBackdrop")?.addEventListener("click", closeTimeMemoSheet);
+  document.getElementById("timeMemoSheetCloseBtn")?.addEventListener("click", closeTimeMemoSheet);
 
   window.addEventListener("scroll", closeFloatingTimeMenu, true);
   window.addEventListener("resize", closeFloatingTimeMenu);

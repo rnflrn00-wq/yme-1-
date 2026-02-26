@@ -591,3 +591,107 @@ body.list-page-open {
 .memo-item .time-memo.is-active-time {
   background: #dbeafe;
 }
+
+
+.time-memo-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+}
+
+.time-memo-sheet.open {
+  display: block;
+}
+
+.time-memo-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+}
+
+.time-memo-sheet__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 65%;
+  background: #fff;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.2);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.time-memo-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.time-memo-sheet__title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time-memo-sheet__count {
+  font-size: var(--font-size-xs);
+  color: #666;
+}
+
+.time-memo-sheet__list {
+  overflow: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.time-memo-sheet__list .time-memo {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-4);
+}
+
+.time-memo-sheet__list .time-content,
+.time-memo-sheet__list .memo-text-area-2 {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.time-memo-sheet__list .time-label {
+  flex-shrink: 0;
+  font-size: var(--font-size-sm);
+  color: #888888;
+}
+
+.time-memo-sheet__list .memo-title-2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.time-memo-sheet__list .actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.time-memo-sheet__list .time-memo.is-active-time {
+  background: #dbeafe;
+}
