@@ -16,6 +16,48 @@ let lastMouse = { x: 20, y: 20 };
 let controlButton = null;
 let coachMark = null;
 
+let checkMemosIntervalId = null;
+let urlObserver = null;
+let extensionContextInvalidated = false;
+
+function isExtensionContextValid() {
+  return Boolean(chrome?.runtime?.id) && !extensionContextInvalidated;
+}
+
+function invalidateExtensionContext() {
+  if (extensionContextInvalidated) return;
+  extensionContextInvalidated = true;
+
+  if (checkMemosIntervalId) {
+    clearInterval(checkMemosIntervalId);
+    checkMemosIntervalId = null;
+  }
+
+  if (urlObserver) {
+    urlObserver.disconnect();
+    urlObserver = null;
+  }
+
+  closeCoachMark();
+  removeExistingMemo();
+}
+
+function withSafeChromeCall(action) {
+  if (!isExtensionContextValid()) return false;
+
+  try {
+    action();
+    return true;
+  } catch (error) {
+    if (String(error?.message || "").includes("Extension context invalidated")) {
+      invalidateExtensionContext();
+      return false;
+    }
+    throw error;
+  }
+}
+
+
 function formatTime(seconds) {
   const safeSeconds = Math.max(0, Number.isFinite(seconds) ? Math.floor(seconds) : 0);
   const m = Math.floor(safeSeconds / 60);
@@ -150,7 +192,8 @@ function saveTimeMemoFromCoach(time, memoText) {
   const videoId = getVideoId();
   if (!videoId || !memoText.trim()) return;
 
-  chrome.storage.local.get([videoId], (result) => {
+  const didStartRead = withSafeChromeCall(() => {
+    chrome.storage.local.get([videoId], (result) => {
     const raw = result[videoId];
     const currentMemos = Array.isArray(raw?.memos)
       ? raw.memos.filter((memo) => memo && typeof memo.text === "string")
@@ -197,7 +240,10 @@ function saveTimeMemoFromCoach(time, memoText) {
         showTimeInsidePopup(`⏱ ${memoText.trim()}`);
       });
     });
+    });
   });
+
+  if (!didStartRead) return;
 }
 
 function openCoachMark(button, time) {
@@ -466,17 +512,22 @@ function ensurePopupForMemos(memos, { autoHideMain = false } = {}) {
 }
 
 function forceShowMemoPopup(videoId, { autoHideMain = false } = {}) {
-  chrome.storage.local.get([videoId], (result) => {
+  const didStartRead = withSafeChromeCall(() => {
+    chrome.storage.local.get([videoId], (result) => {
     const memos = getNormalizedMemos(result[videoId]);
     if (!memos.length) return;
 
     closedByUser = false;
     if (autoHideMain) baseMemoDismissed = false;
     ensurePopupForMemos(memos, { autoHideMain });
+    });
   });
+
+  if (!didStartRead) return;
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!isExtensionContextValid()) return;
   if (request.type === "GET_TIME") {
     const video = document.querySelector("video");
     sendResponse({ time: video ? video.currentTime : 0 });
@@ -520,6 +571,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 function checkMemos() {
+  if (!isExtensionContextValid()) {
+    invalidateExtensionContext();
+    return;
+  }
+
   ensureTimeMemoControlButton();
 
   const video = document.querySelector("video");
@@ -540,7 +596,8 @@ function checkMemos() {
     return;
   }
 
-  chrome.storage.local.get([videoId, MEMO_DISPLAY_KEY], (result) => {
+  const didStartRead = withSafeChromeCall(() => {
+    chrome.storage.local.get([videoId, MEMO_DISPLAY_KEY], (result) => {
     displayEnabled = result[MEMO_DISPLAY_KEY] !== false;
     const memos = getNormalizedMemos(result[videoId]);
 
@@ -609,14 +666,17 @@ function checkMemos() {
     });
 
     syncPopupVisibilityState();
+    });
   });
+
+  if (!didStartRead) return;
 }
 
-setInterval(checkMemos, 1000);
+checkMemosIntervalId = setInterval(checkMemos, 1000);
 
 let lastUrl = location.href;
 
-new MutationObserver(() => {
+urlObserver = new MutationObserver(() => {
   if (location.href === lastUrl) return;
 
   lastUrl = location.href;
@@ -635,26 +695,32 @@ new MutationObserver(() => {
       forceShowMemoPopup(currentId, { autoHideMain: true });
     }
   }, 500);
-}).observe(document, { subtree: true, childList: true });
+});
+
+urlObserver.observe(document, { subtree: true, childList: true });
 
 document.addEventListener("mousemove", (event) => {
+  if (!isExtensionContextValid()) return;
   lastMouse = { x: event.clientX, y: event.clientY };
   syncPopupPosition();
   syncPopupVisibilityState();
 });
 
 document.addEventListener("fullscreenchange", () => {
+  if (!isExtensionContextValid()) return;
   syncPopupVisibilityState();
   if (isFullscreenMode()) closeCoachMark();
 });
 
 document.addEventListener("click", (event) => {
+  if (!isExtensionContextValid()) return;
   if (!coachMark) return;
   if (coachMark.contains(event.target) || controlButton?.contains(event.target)) return;
   closeCoachMark();
 });
 
 window.addEventListener("resize", () => {
+  if (!isExtensionContextValid()) return;
   if (!coachMark || !controlButton) return;
   const rect = controlButton.getBoundingClientRect();
   const left = Math.max(8, Math.min(rect.right - coachMark.offsetWidth, window.innerWidth - coachMark.offsetWidth - 8));

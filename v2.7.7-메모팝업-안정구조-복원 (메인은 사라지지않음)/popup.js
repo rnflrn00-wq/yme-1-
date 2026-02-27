@@ -569,8 +569,15 @@ function buildTimeMemoRow(videoId, memo, { isActiveTimeMemo = false } = {}) {
   return timeMemo;
 }
 
-function openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo = false, playingSecond = null }) {
-  closeFloatingTimeMenu();
+function openTimeMemoSheet({
+  videoId,
+  title,
+  displayedTimeMemos,
+  isPlayingVideo = false,
+  playingSecond = null,
+  closeExistingMenu = true
+}) {
+  if (closeExistingMenu) closeFloatingTimeMenu();
   const sheet = document.getElementById("timeMemoSheet");
   const titleEl = document.getElementById("timeMemoSheetTitle");
   const countEl = document.getElementById("timeMemoSheetCount");
@@ -610,7 +617,8 @@ function refreshOpenedTimeMemoSheet() {
     title: normalized.title,
     displayedTimeMemos,
     isPlayingVideo: openedTimeMemoSheetVideoId === currentVideoId,
-    playingSecond: openedTimeMemoSheetVideoId === currentVideoId ? currentPlaybackSecond : null
+    playingSecond: openedTimeMemoSheetVideoId === currentVideoId ? currentPlaybackSecond : null,
+    closeExistingMenu: false
   });
 }
 
