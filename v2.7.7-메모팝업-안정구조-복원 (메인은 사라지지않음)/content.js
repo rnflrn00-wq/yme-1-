@@ -17,7 +17,8 @@ let coachMark = null;
 let sidePanelRoot = null;
 let progressDotLayer = null;
 let sidePanelMemoDraft = "";
-let lastSecondaryMemoSignature = "";
+let lastSecondaryMemoSignature = "__initial__";
+let sidePanelToastHideTimer = null;
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -308,6 +309,36 @@ function ensureMemoDetailStyle() {
       background: rgba(255,255,255,0.75);
     }
 
+    .yt-memo-secondary-panel__toast {
+      position: sticky;
+      bottom: 0;
+      margin-top: 6px;
+      margin-left: auto;
+      max-width: 100%;
+      width: fit-content;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #fff;
+      background: rgba(0,0,0,0.86);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      padding: 6px 10px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.16s ease, transform 0.16s ease;
+      pointer-events: none;
+      z-index: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .yt-memo-secondary-panel__toast.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     .yt-memo-progress-dot-layer {
       position: absolute;
       inset: 0;
@@ -355,9 +386,14 @@ function isSidePanelComposerFocused() {
   return Boolean(active && active.classList?.contains("yt-memo-secondary-panel__composer-input"));
 }
 
+function isAllowedComposerShortcut(event) {
+  return event.key === "Enter" && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
 function blockYoutubeShortcutWhenComposing(event) {
   if (!isSidePanelComposerFocused()) return;
-  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.defaultPrevented) return;
+  if (isAllowedComposerShortcut(event)) return;
   event.stopImmediatePropagation();
 }
 
@@ -382,6 +418,32 @@ function updateSecondaryPanelActiveState(currentSecond) {
     const isActive = Number.isFinite(itemTime) && Math.abs(itemTime - currentSecond) <= 1;
     item.classList.toggle("is-active", isActive);
   });
+}
+
+function showSidePanelToast(text) {
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
+
+  if (sidePanelToastHideTimer) {
+    clearTimeout(sidePanelToastHideTimer);
+    sidePanelToastHideTimer = null;
+  }
+
+  let toast = sidePanelRoot.querySelector(".yt-memo-secondary-panel__toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "yt-memo-secondary-panel__toast";
+    sidePanelRoot.appendChild(toast);
+  }
+
+  toast.innerText = text;
+  requestAnimationFrame(() => {
+    toast.classList.add("is-visible");
+  });
+
+  sidePanelToastHideTimer = setTimeout(() => {
+    toast.classList.remove("is-visible");
+    sidePanelToastHideTimer = null;
+  }, 1000);
 }
 
 function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
@@ -523,6 +585,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     if (!nextText) return;
     const liveSecond = getCurrentPlaybackSecond();
     saveMemoFromInlineComposer(liveSecond, nextText);
+    showSidePanelToast(nextText);
     sidePanelMemoDraft = "";
     composerInput.value = "";
     composerInput.blur();
@@ -533,6 +596,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     if (event.key === "Enter" && event.shiftKey && !event.isComposing) {
       event.preventDefault();
       saveTimeBtn.click();
+      return;
     }
   });
 
@@ -1023,20 +1087,25 @@ function checkMemos() {
     displayEnabled = result[MEMO_DISPLAY_KEY] !== false;
     const memos = getNormalizedMemos(result[videoId]);
 
+    const currentTime = Math.floor(video.currentTime);
+    const nextSecondaryMemoSignature = getSecondaryMemoSignature(memos);
+
     if (!memos.length) {
       shownBase = false;
       lastBaseMemoText = null;
       baseMemoDismissed = false;
       activeTimes = {};
       removeExistingMemo();
-      lastSecondaryMemoSignature = "";
-      renderSecondaryMemoPanel([]);
+      if (nextSecondaryMemoSignature !== lastSecondaryMemoSignature) {
+        renderSecondaryMemoPanel([], currentTime);
+        lastSecondaryMemoSignature = nextSecondaryMemoSignature;
+      } else {
+        updateSecondaryComposerTime(currentTime);
+      }
       renderProgressMemoDots([]);
       return;
     }
 
-    const currentTime = Math.floor(video.currentTime);
-    const nextSecondaryMemoSignature = getSecondaryMemoSignature(memos);
     if (nextSecondaryMemoSignature !== lastSecondaryMemoSignature) {
       renderSecondaryMemoPanel(memos, currentTime);
       lastSecondaryMemoSignature = nextSecondaryMemoSignature;
