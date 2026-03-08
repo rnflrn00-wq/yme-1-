@@ -15,6 +15,8 @@ let displayEnabled = true;
 let lastMouse = { x: 20, y: 20 };
 let controlButton = null;
 let coachMark = null;
+let sidePanelRoot = null;
+let progressDotLayer = null;
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -176,6 +178,271 @@ function ensureCoachMarkStyle() {
     }
   `;
   document.head.appendChild(style);
+}
+
+function ensureMemoDetailStyle() {
+  if (document.getElementById("yt-memo-detail-style")) return;
+
+  const style = document.createElement("style");
+  style.id = "yt-memo-detail-style";
+  style.textContent = `
+    #yt-memo-secondary-panel {
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0 0 12px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(32, 33, 36, 0.95);
+      color: #fff;
+      font-family: Roboto, Arial, sans-serif;
+    }
+
+    .yt-memo-secondary-panel__title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #8ab4f8;
+    }
+
+    .yt-memo-secondary-panel__section {
+      margin-bottom: 10px;
+    }
+
+    .yt-memo-secondary-panel__label {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 6px;
+    }
+
+    .yt-memo-secondary-panel__base,
+    .yt-memo-secondary-panel__empty {
+      font-size: 13px;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.92);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .yt-memo-secondary-panel__timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: min(34vh, 320px);
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .yt-memo-secondary-panel__item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 7px 8px;
+      text-align: left;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    .yt-memo-secondary-panel__item:hover {
+      background: rgba(138, 180, 248, 0.18);
+    }
+
+    .yt-memo-secondary-panel__time {
+      font-size: 12px;
+      font-weight: 700;
+      color: #8ab4f8;
+      min-width: 40px;
+    }
+
+    .yt-memo-secondary-panel__text {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.92);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.35;
+    }
+
+    .yt-memo-progress-dot-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 35;
+    }
+
+    .yt-memo-progress-dot {
+      position: absolute;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #8ab4f8;
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+    }
+
+    @media (max-width: 1200px) {
+      #yt-memo-secondary-panel {
+        margin-bottom: 10px;
+        padding: 10px;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function seekCurrentVideoTo(time) {
+  const video = document.querySelector("video");
+  if (!video) return;
+  video.currentTime = Math.max(0, Number.isFinite(time) ? time : 0);
+  video.play().catch(() => {});
+}
+
+function renderSecondaryMemoPanel(memos = []) {
+  ensureMemoDetailStyle();
+
+  const secondary = document.querySelector("#secondary");
+  if (!secondary) {
+    if (sidePanelRoot) {
+      sidePanelRoot.remove();
+      sidePanelRoot = null;
+    }
+    return;
+  }
+
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) {
+    sidePanelRoot = document.createElement("section");
+    sidePanelRoot.id = "yt-memo-secondary-panel";
+    secondary.insertBefore(sidePanelRoot, secondary.firstChild || null);
+  }
+
+  const baseMemo = memos.find((memo) => memo.time === 0)?.text?.trim() || "";
+  const timeMemos = memos
+    .filter((memo) => memo.time > 0)
+    .sort((a, b) => a.time - b.time);
+
+  sidePanelRoot.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "yt-memo-secondary-panel__title";
+  title.innerText = "노트 상세";
+
+  const baseSection = document.createElement("div");
+  baseSection.className = "yt-memo-secondary-panel__section";
+
+  const baseLabel = document.createElement("div");
+  baseLabel.className = "yt-memo-secondary-panel__label";
+  baseLabel.innerText = "기본 노트";
+
+  const baseContent = document.createElement("div");
+  baseContent.className = baseMemo
+    ? "yt-memo-secondary-panel__base"
+    : "yt-memo-secondary-panel__empty";
+  baseContent.innerText = baseMemo || "등록된 기본 노트가 없습니다.";
+
+  baseSection.appendChild(baseLabel);
+  baseSection.appendChild(baseContent);
+
+  const timelineSection = document.createElement("div");
+  timelineSection.className = "yt-memo-secondary-panel__section";
+
+  const timelineLabel = document.createElement("div");
+  timelineLabel.className = "yt-memo-secondary-panel__label";
+  timelineLabel.innerText = "타임노트 타임라인";
+  timelineSection.appendChild(timelineLabel);
+
+  if (!timeMemos.length) {
+    const empty = document.createElement("div");
+    empty.className = "yt-memo-secondary-panel__empty";
+    empty.innerText = "등록된 시간 메모가 없습니다.";
+    timelineSection.appendChild(empty);
+  } else {
+    const timeline = document.createElement("div");
+    timeline.className = "yt-memo-secondary-panel__timeline";
+
+    timeMemos.forEach((memo) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "yt-memo-secondary-panel__item";
+      const timeText = document.createElement("span");
+      timeText.className = "yt-memo-secondary-panel__time";
+      timeText.innerText = formatTime(memo.time);
+
+      const memoText = document.createElement("span");
+      memoText.className = "yt-memo-secondary-panel__text";
+      memoText.innerText = memo.text;
+
+      item.appendChild(timeText);
+      item.appendChild(memoText);
+      item.addEventListener("click", () => {
+        seekCurrentVideoTo(memo.time);
+      });
+
+      timeline.appendChild(item);
+    });
+
+    timelineSection.appendChild(timeline);
+  }
+
+  sidePanelRoot.appendChild(title);
+  sidePanelRoot.appendChild(baseSection);
+  sidePanelRoot.appendChild(timelineSection);
+}
+
+function renderProgressMemoDots(memos = []) {
+  ensureMemoDetailStyle();
+
+  const progressContainer = document.querySelector(".ytp-progress-bar-container");
+  const video = document.querySelector("video");
+  const duration = Number.isFinite(video?.duration) ? video.duration : 0;
+
+  if (!progressContainer || !duration) {
+    if (progressDotLayer) {
+      progressDotLayer.remove();
+      progressDotLayer = null;
+    }
+    return;
+  }
+
+  const timeMemos = memos
+    .filter((memo) => memo.time > 0)
+    .sort((a, b) => a.time - b.time);
+
+  if (!timeMemos.length) {
+    if (progressDotLayer) {
+      progressDotLayer.remove();
+      progressDotLayer = null;
+    }
+    return;
+  }
+
+  const computedPosition = getComputedStyle(progressContainer).position;
+  if (computedPosition === "static") {
+    progressContainer.style.position = "relative";
+  }
+
+  if (!progressDotLayer || !progressDotLayer.isConnected) {
+    progressDotLayer = document.createElement("div");
+    progressDotLayer.className = "yt-memo-progress-dot-layer";
+    progressContainer.appendChild(progressDotLayer);
+  }
+
+  progressDotLayer.innerHTML = "";
+
+  const uniqueTimes = [...new Set(timeMemos.map((memo) => memo.time))];
+  uniqueTimes.forEach((time) => {
+    const percent = Math.max(0, Math.min(100, (time / duration) * 100));
+    const dot = document.createElement("span");
+    dot.className = "yt-memo-progress-dot";
+    dot.style.left = `${percent}%`;
+    dot.title = `메모 ${formatTime(time)}`;
+    progressDotLayer.appendChild(dot);
+  });
 }
 
 function getCurrentVideoMeta(videoId) {
@@ -584,6 +851,8 @@ function checkMemos() {
     lastBaseMemoText = null;
     baseMemoDismissed = false;
     removeExistingMemo();
+    renderSecondaryMemoPanel([]);
+    renderProgressMemoDots([]);
     return;
   }
 
@@ -593,6 +862,8 @@ function checkMemos() {
     lastBaseMemoText = null;
     baseMemoDismissed = false;
     removeExistingMemo();
+    renderSecondaryMemoPanel([]);
+    renderProgressMemoDots([]);
     return;
   }
 
@@ -607,8 +878,13 @@ function checkMemos() {
       baseMemoDismissed = false;
       activeTimes = {};
       removeExistingMemo();
+      renderSecondaryMemoPanel([]);
+      renderProgressMemoDots([]);
       return;
     }
+
+    renderSecondaryMemoPanel(memos);
+    renderProgressMemoDots(memos);
 
     const baseMemo = memos.find((memo) => memo.time === 0);
     const baseMemoChanged = Boolean(baseMemo) && baseMemo.text !== lastBaseMemoText;
@@ -721,10 +997,20 @@ document.addEventListener("click", (event) => {
 
 window.addEventListener("resize", () => {
   if (!isExtensionContextValid()) return;
-  if (!coachMark || !controlButton) return;
-  const rect = controlButton.getBoundingClientRect();
-  const left = Math.max(8, Math.min(rect.right - coachMark.offsetWidth, window.innerWidth - coachMark.offsetWidth - 8));
-  const top = Math.max(8, rect.top - coachMark.offsetHeight - 10);
-  coachMark.style.left = `${left}px`;
-  coachMark.style.top = `${top}px`;
+  if (coachMark && controlButton) {
+    const rect = controlButton.getBoundingClientRect();
+    const left = Math.max(8, Math.min(rect.right - coachMark.offsetWidth, window.innerWidth - coachMark.offsetWidth - 8));
+    const top = Math.max(8, rect.top - coachMark.offsetHeight - 10);
+    coachMark.style.left = `${left}px`;
+    coachMark.style.top = `${top}px`;
+  }
+  checkMemos();
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (!isExtensionContextValid() || areaName !== "local") return;
+  const currentVideoId = getVideoId();
+  if (!currentVideoId) return;
+  if (!changes[currentVideoId]) return;
+  checkMemos();
 });
