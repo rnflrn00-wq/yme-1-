@@ -18,6 +18,7 @@ let sidePanelRoot = null;
 let progressDotLayer = null;
 let sidePanelMemoDraft = "";
 let lastSecondaryMemoSignature = "__initial__";
+let lastSecondaryRenderVideoId = null;
 let sidePanelToastHideTimer = null;
 
 let checkMemosIntervalId = null;
@@ -420,6 +421,17 @@ function updateSecondaryPanelActiveState(currentSecond) {
   });
 }
 
+function shouldRenderSecondaryPanel(nextSignature, videoId) {
+  if (nextSignature !== lastSecondaryMemoSignature) return true;
+  if (videoId !== lastSecondaryRenderVideoId) return true;
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) return true;
+
+  const secondary = document.querySelector("#secondary");
+  if (!secondary) return true;
+
+  return sidePanelRoot.parentElement !== secondary;
+}
+
 function showSidePanelToast(text) {
   if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
 
@@ -450,6 +462,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   ensureMemoDetailStyle();
 
   if (!isWatchVideoPage()) {
+    lastSecondaryRenderVideoId = null;
     if (sidePanelRoot) {
       sidePanelRoot.remove();
       sidePanelRoot = null;
@@ -459,6 +472,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
   const secondary = document.querySelector("#secondary");
   if (!secondary) {
+    lastSecondaryRenderVideoId = null;
     if (sidePanelRoot) {
       sidePanelRoot.remove();
       sidePanelRoot = null;
@@ -471,6 +485,8 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     sidePanelRoot.id = "yt-memo-secondary-panel";
     secondary.insertBefore(sidePanelRoot, secondary.firstChild || null);
   }
+
+  lastSecondaryRenderVideoId = getVideoId();
 
   const baseMemo = memos.find((memo) => memo.time === 0)?.text?.trim() || "";
   const timeMemos = memos
@@ -1065,6 +1081,7 @@ function checkMemos() {
     baseMemoDismissed = false;
     removeExistingMemo();
     lastSecondaryMemoSignature = "";
+    lastSecondaryRenderVideoId = null;
     renderSecondaryMemoPanel([]);
     renderProgressMemoDots([]);
     return;
@@ -1077,6 +1094,7 @@ function checkMemos() {
     baseMemoDismissed = false;
     removeExistingMemo();
     lastSecondaryMemoSignature = "";
+    lastSecondaryRenderVideoId = null;
     renderSecondaryMemoPanel([]);
     renderProgressMemoDots([]);
     return;
@@ -1096,7 +1114,7 @@ function checkMemos() {
       baseMemoDismissed = false;
       activeTimes = {};
       removeExistingMemo();
-      if (nextSecondaryMemoSignature !== lastSecondaryMemoSignature) {
+      if (shouldRenderSecondaryPanel(nextSecondaryMemoSignature, videoId)) {
         renderSecondaryMemoPanel([], currentTime);
         lastSecondaryMemoSignature = nextSecondaryMemoSignature;
       } else {
@@ -1106,7 +1124,7 @@ function checkMemos() {
       return;
     }
 
-    if (nextSecondaryMemoSignature !== lastSecondaryMemoSignature) {
+    if (shouldRenderSecondaryPanel(nextSecondaryMemoSignature, videoId)) {
       renderSecondaryMemoPanel(memos, currentTime);
       lastSecondaryMemoSignature = nextSecondaryMemoSignature;
     } else {
@@ -1177,14 +1195,7 @@ function checkMemos() {
   if (!didStartRead) return;
 }
 
-checkMemosIntervalId = setInterval(checkMemos, 1000);
-
-let lastUrl = location.href;
-
-urlObserver = new MutationObserver(() => {
-  if (location.href === lastUrl) return;
-
-  lastUrl = location.href;
+function resetMemoUiStateForNavigation() {
   shownBase = false;
   lastBaseMemoText = null;
   baseMemoDismissed = false;
@@ -1192,7 +1203,14 @@ urlObserver = new MutationObserver(() => {
   closedByUser = false;
   sidePanelMemoDraft = "";
   lastSecondaryMemoSignature = "";
+  lastSecondaryRenderVideoId = null;
   removeExistingMemo();
+}
+
+function onYouTubeNavigationChanged() {
+  if (location.href === lastUrl) return;
+  lastUrl = location.href;
+  resetMemoUiStateForNavigation();
 
   setTimeout(() => {
     closeCoachMark();
@@ -1201,10 +1219,22 @@ urlObserver = new MutationObserver(() => {
     if (currentId && displayEnabled) {
       forceShowMemoPopup(currentId, { autoHideMain: true });
     }
-  }, 500);
+  }, 150);
+}
+
+checkMemosIntervalId = setInterval(checkMemos, 1000);
+
+let lastUrl = location.href;
+
+urlObserver = new MutationObserver(() => {
+  onYouTubeNavigationChanged();
 });
 
 urlObserver.observe(document, { subtree: true, childList: true });
+
+window.addEventListener("yt-navigate-start", onYouTubeNavigationChanged, true);
+window.addEventListener("yt-navigate-finish", onYouTubeNavigationChanged, true);
+window.addEventListener("popstate", onYouTubeNavigationChanged, true);
 
 document.addEventListener("mousemove", (event) => {
   if (!isExtensionContextValid()) return;
