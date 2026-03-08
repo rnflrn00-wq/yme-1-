@@ -923,8 +923,6 @@ function bindEvents() {
     });
   };
 
-  document.getElementById("saveTimeBtn")?.addEventListener("click", saveCurrentTimeMemo);
-
   document.getElementById("memoInput")?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || !event.shiftKey) return;
     event.preventDefault();

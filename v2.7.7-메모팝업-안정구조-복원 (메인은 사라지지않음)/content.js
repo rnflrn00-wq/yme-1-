@@ -1142,6 +1142,10 @@ document.addEventListener("click", (event) => {
   closeCoachMark();
 });
 
+document.addEventListener("keydown", blockYoutubeShortcutWhenComposing, true);
+document.addEventListener("keyup", blockYoutubeShortcutWhenComposing, true);
+document.addEventListener("keypress", blockYoutubeShortcutWhenComposing, true);
+
 window.addEventListener("resize", () => {
   if (!isExtensionContextValid()) return;
   checkMemos();
