@@ -15,6 +15,8 @@ let playbackTimer = null;
 let floatingMenuOwnerKey = null;
 let currentPlaybackSecond = null;
 let openedTimeMemoSheetVideoId = null;
+let lastMainScrollTop = 0;
+let isMemoComposerCollapsed = false;
 
 function getVideoIdFromUrl(url) {
   if (!url) return null;
@@ -267,14 +269,91 @@ function showPage(pageId) {
 
   const settingsBtn = document.getElementById("goPage3Btn");
   settingsBtn?.classList.toggle("hidden", pageId === "page-settings");
-  document.body.classList.toggle("list-page-open", pageId === "page-list");
 }
 
 function initPageNavigation() {
-  document.getElementById("goPage2Btn")?.addEventListener("click", () => showPage("page-list"));
   document.getElementById("goPage3Btn")?.addEventListener("click", () => showPage("page-settings"));
-  document.getElementById("backFromListBtn")?.addEventListener("click", () => showPage("page-main"));
   document.getElementById("backFromSettingsBtn")?.addEventListener("click", () => showPage("page-main"));
+}
+
+function initMainScrollBehavior() {
+  const scrollArea = document.getElementById("mainScrollArea");
+  const searchContainer = document.getElementById("searchContainer");
+  if (!scrollArea || !searchContainer) return;
+
+  scrollArea.addEventListener("scroll", () => {
+    const currentTop = scrollArea.scrollTop;
+    if (currentTop < 4) {
+      searchContainer.classList.remove("is-hidden");
+      lastMainScrollTop = currentTop;
+      return;
+    }
+
+    if (currentTop < lastMainScrollTop) {
+      searchContainer.classList.add("is-hidden");
+    } else if (currentTop > lastMainScrollTop) {
+      searchContainer.classList.remove("is-hidden");
+    }
+    lastMainScrollTop = currentTop;
+  });
+}
+
+function setMemoComposerCollapsed(collapsed) {
+  const sheet = document.getElementById("memoComposerSheet");
+  if (!sheet) return;
+  isMemoComposerCollapsed = collapsed;
+  sheet.classList.toggle("collapsed", collapsed);
+  sheet.classList.toggle("expanded", !collapsed);
+}
+
+function initMemoComposerSheet() {
+  const handle = document.getElementById("memoSheetHandle");
+  const toggleBtn = document.getElementById("memoSheetToggleBtn");
+  if (!handle || !toggleBtn) return;
+
+  let startY = 0;
+  let dragging = false;
+
+  const onMove = (clientY) => {
+    if (!dragging) return;
+    const deltaY = clientY - startY;
+    if (deltaY > 24) {
+      setMemoComposerCollapsed(true);
+    } else if (deltaY < -24) {
+      setMemoComposerCollapsed(false);
+    }
+  };
+
+  const onMouseMove = (event) => onMove(event.clientY);
+  const onMouseUp = () => {
+    dragging = false;
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  };
+
+  handle.addEventListener("mousedown", (event) => {
+    dragging = true;
+    startY = event.clientY;
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+
+  handle.addEventListener("touchstart", (event) => {
+    dragging = true;
+    startY = event.touches[0].clientY;
+  }, { passive: true });
+
+  handle.addEventListener("touchmove", (event) => {
+    onMove(event.touches[0].clientY);
+  }, { passive: true });
+
+  handle.addEventListener("touchend", () => {
+    dragging = false;
+  });
+
+  toggleBtn.addEventListener("click", () => {
+    setMemoComposerCollapsed(!isMemoComposerCollapsed);
+  });
 }
 
 async function fetchVideoMeta(videoId) {
@@ -967,8 +1046,15 @@ function bindEvents() {
 function setCurrentVideoMeta({ title, timeText }) {
   const titleEl = document.getElementById("currentVideoTitle");
   const timeEl = document.getElementById("currentVideoTime");
+  const thumbEl = document.getElementById("currentVideoThumb");
   if (titleEl) titleEl.innerText = title || "유튜브 영상 페이지가 아닙니다.";
   if (timeEl) timeEl.innerText = timeText || "00:00";
+  if (thumbEl) {
+    thumbEl.src = currentVideoId
+      ? `https://img.youtube.com/vi/${currentVideoId}/hqdefault.jpg`
+      : "";
+    thumbEl.style.visibility = currentVideoId ? "visible" : "hidden";
+  }
 }
 
 function updateCurrentPlaybackTime() {
@@ -976,9 +1062,7 @@ function updateCurrentPlaybackTime() {
     const safeSecond = Number.isFinite(second) ? Math.max(0, Math.floor(second)) : null;
     if (safeSecond === currentPlaybackSecond) return;
     currentPlaybackSecond = safeSecond;
-    if (document.getElementById("page-list")?.classList.contains("active")) {
-      renderList(currentFilterText);
-    }
+    renderList(currentFilterText);
   };
 
   if (!currentActiveTabId || !currentVideoId || !isCurrentPageWatch) {
@@ -1043,5 +1127,7 @@ initPageNavigation();
 initCustomModal();
 initMemoVisibilityToggle();
 bindEvents();
+initMainScrollBehavior();
+initMemoComposerSheet();
 initCurrentTabVideo();
 loadMemoList();
