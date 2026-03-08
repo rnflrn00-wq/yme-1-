@@ -14,7 +14,7 @@ let currentVideoTitleText = "";
 let playbackTimer = null;
 let floatingMenuOwnerKey = null;
 let currentPlaybackSecond = null;
-let openedTimeMemoSheetVideoId = null;
+let openedTimeNotesPageVideoId = null;
 let lastMainScrollTop = 0;
 let isMemoComposerCollapsed = false;
 
@@ -268,12 +268,13 @@ function showPage(pageId) {
   });
 
   const settingsBtn = document.getElementById("goPage3Btn");
-  settingsBtn?.classList.toggle("hidden", pageId === "page-settings");
+  settingsBtn?.classList.toggle("hidden", pageId !== "page-main");
 }
 
 function initPageNavigation() {
   document.getElementById("goPage3Btn")?.addEventListener("click", () => showPage("page-settings"));
   document.getElementById("backFromSettingsBtn")?.addEventListener("click", () => showPage("page-main"));
+  document.getElementById("backFromTimeNotesBtn")?.addEventListener("click", () => showPage("page-main"));
 }
 
 function initMainScrollBehavior() {
@@ -298,12 +299,21 @@ function initMainScrollBehavior() {
   });
 }
 
+function updateMainScrollOffset() {
+  const sheet = document.getElementById("memoComposerSheet");
+  const scrollArea = document.getElementById("mainScrollArea");
+  if (!sheet || !scrollArea) return;
+  const offset = isMemoComposerCollapsed ? 38 : Math.ceil(sheet.getBoundingClientRect().height);
+  scrollArea.style.setProperty("--composer-offset", `${offset}px`);
+}
+
 function setMemoComposerCollapsed(collapsed) {
   const sheet = document.getElementById("memoComposerSheet");
   if (!sheet) return;
   isMemoComposerCollapsed = collapsed;
   sheet.classList.toggle("collapsed", collapsed);
   sheet.classList.toggle("expanded", !collapsed);
+  updateMainScrollOffset();
 }
 
 function initMemoComposerSheet() {
@@ -311,49 +321,11 @@ function initMemoComposerSheet() {
   const toggleBtn = document.getElementById("memoSheetToggleBtn");
   if (!handle || !toggleBtn) return;
 
-  let startY = 0;
-  let dragging = false;
-
-  const onMove = (clientY) => {
-    if (!dragging) return;
-    const deltaY = clientY - startY;
-    if (deltaY > 24) {
-      setMemoComposerCollapsed(true);
-    } else if (deltaY < -24) {
-      setMemoComposerCollapsed(false);
-    }
-  };
-
-  const onMouseMove = (event) => onMove(event.clientY);
-  const onMouseUp = () => {
-    dragging = false;
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
-  };
-
-  handle.addEventListener("mousedown", (event) => {
-    dragging = true;
-    startY = event.clientY;
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  });
-
-  handle.addEventListener("touchstart", (event) => {
-    dragging = true;
-    startY = event.touches[0].clientY;
-  }, { passive: true });
-
-  handle.addEventListener("touchmove", (event) => {
-    onMove(event.touches[0].clientY);
-  }, { passive: true });
-
-  handle.addEventListener("touchend", () => {
-    dragging = false;
-  });
-
-  toggleBtn.addEventListener("click", () => {
-    setMemoComposerCollapsed(!isMemoComposerCollapsed);
-  });
+  const toggleSheet = () => setMemoComposerCollapsed(!isMemoComposerCollapsed);
+  toggleBtn.addEventListener("click", toggleSheet);
+  handle.addEventListener("click", toggleSheet);
+  window.addEventListener("resize", updateMainScrollOffset);
+  requestAnimationFrame(updateMainScrollOffset);
 }
 
 async function fetchVideoMeta(videoId) {
@@ -545,10 +517,8 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
 
   closeFloatingTimeMenu();
 
-  const sheet = document.getElementById("timeMemoSheet");
-  const isSheetOpen = sheet?.classList.contains("open");
   const menu = document.createElement("div");
-  menu.className = `floating-time-menu${isSheetOpen ? " floating-time-menu--sheet" : ""}`;
+  menu.className = "floating-time-menu";
 
   const editBtn = createActionButton({
     label: "수정",
@@ -577,8 +547,7 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
   menu.appendChild(editBtn);
   menu.appendChild(deleteBtn);
 
-  const host = isSheetOpen && sheet ? sheet : document.body;
-  host.appendChild(menu);
+  document.body.appendChild(menu);
   floatingTimeMenu = menu;
   floatingMenuOwnerKey = ownerKey;
 
@@ -589,7 +558,7 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
 
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
-  menu.style.zIndex = isSheetOpen ? "3" : "2147483647";
+  menu.style.zIndex = "2147483647";
 }
 
 function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
@@ -605,14 +574,13 @@ function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
   });
 }
 
-function closeTimeMemoSheet() {
+function closeTimeNotesPage() {
   closeFloatingTimeMenu();
-  document.getElementById("timeMemoSheet")?.classList.remove("open");
-  const list = document.getElementById("timeMemoSheetList");
-  if (list) list.innerHTML = "";
-  openedTimeMemoSheetVideoId = null;
+  openedTimeNotesPageVideoId = null;
+  showPage("page-main");
 }
 
+/* 컴포넌트화: 타임메모 행 컴포넌트(메인/타임노트 페이지 공용) */
 function buildTimeMemoRow(videoId, memo, { isActiveTimeMemo = false } = {}) {
   const timeMemo = document.createElement("div");
   timeMemo.className = `time-memo${isActiveTimeMemo ? " is-active-time" : ""}`;
@@ -648,7 +616,7 @@ function buildTimeMemoRow(videoId, memo, { isActiveTimeMemo = false } = {}) {
   return timeMemo;
 }
 
-function openTimeMemoSheet({
+function openTimeNotesPage({
   videoId,
   title,
   displayedTimeMemos,
@@ -657,11 +625,10 @@ function openTimeMemoSheet({
   closeExistingMenu = true
 }) {
   if (closeExistingMenu) closeFloatingTimeMenu();
-  const sheet = document.getElementById("timeMemoSheet");
-  const titleEl = document.getElementById("timeMemoSheetTitle");
-  const countEl = document.getElementById("timeMemoSheetCount");
-  const listEl = document.getElementById("timeMemoSheetList");
-  if (!sheet || !titleEl || !countEl || !listEl) return;
+  const titleEl = document.getElementById("timeNotesPageTitle");
+  const countEl = document.getElementById("timeNotesPageCount");
+  const listEl = document.getElementById("timeNotesPageList");
+  if (!titleEl || !countEl || !listEl) return;
 
   titleEl.innerText = title;
   countEl.innerText = `Time memo ${displayedTimeMemos.length}`;
@@ -672,16 +639,16 @@ function openTimeMemoSheet({
     listEl.appendChild(buildTimeMemoRow(videoId, memo, { isActiveTimeMemo }));
   });
 
-  openedTimeMemoSheetVideoId = videoId;
-  sheet.classList.add("open");
+  openedTimeNotesPageVideoId = videoId;
+  showPage("page-time-notes");
 }
 
-function refreshOpenedTimeMemoSheet() {
-  if (!openedTimeMemoSheetVideoId) return;
+function refreshOpenedTimeNotesPage() {
+  if (!openedTimeNotesPageVideoId) return;
 
-  const normalized = normalizeMemoData(openedTimeMemoSheetVideoId, allData[openedTimeMemoSheetVideoId]);
+  const normalized = normalizeMemoData(openedTimeNotesPageVideoId, allData[openedTimeNotesPageVideoId]);
   if (!normalized) {
-    closeTimeMemoSheet();
+    closeTimeNotesPage();
     return;
   }
 
@@ -691,12 +658,12 @@ function refreshOpenedTimeMemoSheet() {
     .filter((memo) => !currentFilterText || memo.text.toLowerCase().includes(currentFilterText))
     .sort((a, b) => a.time - b.time);
 
-  openTimeMemoSheet({
-    videoId: openedTimeMemoSheetVideoId,
+  openTimeNotesPage({
+    videoId: openedTimeNotesPageVideoId,
     title: normalized.title,
     displayedTimeMemos,
-    isPlayingVideo: openedTimeMemoSheetVideoId === currentVideoId,
-    playingSecond: openedTimeMemoSheetVideoId === currentVideoId ? currentPlaybackSecond : null,
+    isPlayingVideo: openedTimeNotesPageVideoId === currentVideoId,
+    playingSecond: openedTimeNotesPageVideoId === currentVideoId ? currentPlaybackSecond : null,
     closeExistingMenu: false
   });
 }
@@ -706,12 +673,7 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   memoItem.className = `memo-item${isPlayingVideo ? " playing-video" : ""}`;
 
   const mainMemo = document.createElement("div");
-  mainMemo.className = `main-memo click-target${isPlayingVideo ? " is-disabled-click" : ""}`;
-  const openVideoTarget = () => {
-    if (isPlayingVideo) return;
-    openVideoInNewTab(videoId, { showPopup: true });
-  };
-  mainMemo.addEventListener("click", openVideoTarget);
+  mainMemo.className = "main-memo";
 
   const thumb = document.createElement("img");
   thumb.className = "thumbnail";
@@ -738,43 +700,32 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   const mainActions = document.createElement("div");
   mainActions.className = "main-actions";
 
-  const deleteBtn = createActionButton({
-    label: "삭제",
-    className: "delete-btn ds-btn--danger",
-    onClick: async (event) => {
+  const videoNavBtn = createActionButton({
+    label: isPlayingVideo ? "⏸ 재생중" : "▶ 이동",
+    className: `video-nav-btn${isPlayingVideo ? " is-playing" : ""}`,
+    title: isPlayingVideo ? "현재 재생중인 영상" : "이 영상으로 이동",
+    onClick: (event) => {
       event.stopPropagation();
-      const ok = await showConfirmModal("모든 메모가 삭제됩니다. 삭제할까요?");
-      if (!ok) return;
-
-      chrome.storage.local.remove(videoId, () => {
-        refreshMemoPopupForVideo(videoId);
-        loadMemoList();
-      });
+      if (isPlayingVideo) return;
+      openVideoInNewTab(videoId, { showPopup: true });
     }
   });
-  mainActions.appendChild(deleteBtn);
 
+  mainActions.appendChild(videoNavBtn);
   memoContainer.appendChild(memoTextArea);
   memoContainer.appendChild(mainActions);
   mainMemo.appendChild(thumb);
   mainMemo.appendChild(memoContainer);
   memoItem.appendChild(mainMemo);
 
-  [thumb, memoContainer, memoTextArea, titleEl, baseTextEl].forEach((element) => {
-    element.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openVideoTarget();
-    });
-  });
-
   const timeHeader = document.createElement("div");
   timeHeader.className = "time-memo-header click-target";
-  timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 클릭해서 보기`;
+  timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 페이지에서 보기`;
   memoItem.appendChild(timeHeader);
 
   timeHeader.onclick = (event) => {
     event.stopPropagation();
-    openTimeMemoSheet({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
+    openTimeNotesPage({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
   };
 
   return memoItem;
@@ -837,66 +788,52 @@ function renderList(filterText) {
   list.innerHTML = "";
 
   const grouped = groupedByChannel();
-
-  const sortedChannels = Object.entries(grouped)
-    .map(([channelName, videos]) => {
-      const sortedVideos = videos
-        .slice()
-        .sort((a, b) => {
-          const aPlaying = a.videoId === currentVideoId ? 1 : 0;
-          const bPlaying = b.videoId === currentVideoId ? 1 : 0;
-          if (aPlaying !== bPlaying) return bPlaying - aPlaying;
-          return getVideoLatestTimestamp(b.memos) - getVideoLatestTimestamp(a.memos);
-        });
-
-      return {
-        channelName,
-        videos: sortedVideos,
-        latestChannelTimestamp: sortedVideos.length ? getVideoLatestTimestamp(sortedVideos[0].memos) : 0,
-        isPlayingChannel: sortedVideos.some((video) => video.videoId === currentVideoId)
-      };
-    })
-    .sort((a, b) => {
-      if (a.isPlayingChannel !== b.isPlayingChannel) return a.isPlayingChannel ? -1 : 1;
-      return b.latestChannelTimestamp - a.latestChannelTimestamp;
-    });
+  const channelEntries = Object.entries(grouped).map(([channelName, videos]) => ({
+    channelName,
+    videos: videos.slice().sort((a, b) => getVideoLatestTimestamp(b.memos) - getVideoLatestTimestamp(a.memos))
+  }));
 
   let renderedCount = 0;
+  let playingVideoData = null;
+  let playingChannelName = "";
 
-  sortedChannels.forEach(({ channelName, videos, isPlayingChannel }) => {
-    const videoRenderData = videos
-      .map(({ videoId, title, thumbnail, memos }) => {
-        const lowerTitle = title.toLowerCase();
-        const lowerChannel = channelName.toLowerCase();
-        const baseMemo = memos.map((m, index) => ({ ...m, index })).find((m) => m.time === 0);
-        const timeMemos = memos
-          .map((m, index) => ({ ...m, index }))
-          .filter((m) => m.time > 0)
-          .sort((a, b) => a.time - b.time);
+  channelEntries.forEach(({ channelName, videos }) => {
+    videos.forEach(({ videoId, title, thumbnail, memos }) => {
+      if (videoId !== currentVideoId) return;
+      const baseMemo = memos.map((m, index) => ({ ...m, index })).find((m) => m.time === 0);
+      const timeMemos = memos.map((m, index) => ({ ...m, index })).filter((m) => m.time > 0).sort((a, b) => a.time - b.time);
+      playingVideoData = { videoId, title, thumbnail, baseMemo, displayedTimeMemos: timeMemos };
+      playingChannelName = channelName;
+    });
+  });
 
-        if (!filterText) {
-          return { videoId, title, thumbnail, baseMemo, displayedTimeMemos: timeMemos };
-        }
+  if (playingVideoData) {
+    const playingGroup = document.createElement("section");
+    playingGroup.className = "channel-group is-playing-channel";
 
-        const titleMatched = lowerTitle.includes(filterText);
-        const channelMatched = lowerChannel.includes(filterText);
-        const baseMatched = Boolean(baseMemo && baseMemo.text.toLowerCase().includes(filterText));
-        const matchedTimeMemos = timeMemos.filter((m) => m.text.toLowerCase().includes(filterText));
+    const category = document.createElement("div");
+    category.className = "channel-category";
+    category.innerText = "현재 재생중";
+    playingGroup.appendChild(category);
 
-        if (!(titleMatched || channelMatched || baseMatched || matchedTimeMemos.length > 0)) return null;
+    playingGroup.appendChild(buildMemoItem({
+      ...playingVideoData,
+      isPlayingVideo: true,
+      playingSecond: currentPlaybackSecond
+    }));
+    list.appendChild(playingGroup);
+    renderedCount += 1;
+  }
 
-        return {
-          videoId,
-          title,
-          thumbnail,
-          baseMemo,
-          displayedTimeMemos: titleMatched || channelMatched ? timeMemos : matchedTimeMemos
-        };
-      })
-      .filter(Boolean);
+  const sortedChannels = channelEntries.sort((a, b) => {
+    const aPlaying = a.channelName === playingChannelName;
+    const bPlaying = b.channelName === playingChannelName;
+    if (aPlaying !== bPlaying) return aPlaying ? -1 : 1;
+    return getVideoLatestTimestamp((b.videos[0] || {}).memos || []) - getVideoLatestTimestamp((a.videos[0] || {}).memos || []);
+  });
 
-    if (!videoRenderData.length) return;
-
+  sortedChannels.forEach(({ channelName, videos }) => {
+    const isPlayingChannel = channelName === playingChannelName;
     const channelGroup = document.createElement("section");
     channelGroup.className = `channel-group${isPlayingChannel ? " is-playing-channel" : ""}`;
 
@@ -905,17 +842,34 @@ function renderList(filterText) {
     category.innerHTML = highlightText(channelName, filterText);
     channelGroup.appendChild(category);
 
-    videoRenderData.forEach((data) => {
-      const isPlayingVideo = data.videoId === currentVideoId;
+    let hasRows = false;
+    videos.forEach(({ videoId, title, thumbnail, memos }) => {
+      if (videoId === currentVideoId) return;
+      const lowerTitle = title.toLowerCase();
+      const lowerChannel = channelName.toLowerCase();
+      const baseMemo = memos.map((m, index) => ({ ...m, index })).find((m) => m.time === 0);
+      const timeMemos = memos.map((m, index) => ({ ...m, index })).filter((m) => m.time > 0).sort((a, b) => a.time - b.time);
+
+      const titleMatched = !filterText || lowerTitle.includes(filterText);
+      const channelMatched = !filterText || lowerChannel.includes(filterText);
+      const baseMatched = Boolean(baseMemo && (!filterText || baseMemo.text.toLowerCase().includes(filterText)));
+      const matchedTimeMemos = !filterText ? timeMemos : timeMemos.filter((m) => m.text.toLowerCase().includes(filterText));
+      if (filterText && !(titleMatched || channelMatched || baseMatched || matchedTimeMemos.length > 0)) return;
+
       channelGroup.appendChild(buildMemoItem({
-        ...data,
-        isPlayingVideo,
-        playingSecond: isPlayingVideo ? currentPlaybackSecond : null
+        videoId,
+        title,
+        thumbnail,
+        baseMemo,
+        displayedTimeMemos: titleMatched || channelMatched ? timeMemos : matchedTimeMemos,
+        isPlayingVideo: false,
+        playingSecond: null
       }));
+      hasRows = true;
       renderedCount += 1;
     });
 
-    list.appendChild(channelGroup);
+    if (hasRows) list.appendChild(channelGroup);
   });
 
   if (filterText && renderedCount === 0) {
@@ -925,7 +879,7 @@ function renderList(filterText) {
     list.appendChild(empty);
   }
 
-  refreshOpenedTimeMemoSheet();
+  refreshOpenedTimeNotesPage();
 }
 
 function bindEvents() {
@@ -971,12 +925,6 @@ function bindEvents() {
     updateSearchClearButton();
     renderList("");
     input.focus();
-  });
-
-  document.getElementById("clearRecentHistoryBtn")?.addEventListener("click", async () => {
-    const ok = await showConfirmModal("최근 등록 기록을 모두 삭제할까요?");
-    if (!ok) return;
-    clearRecentHistory();
   });
 
   document.getElementById("clearAllDataBtn")?.addEventListener("click", async () => {
@@ -1035,8 +983,7 @@ function bindEvents() {
     closeFloatingTimeMenu();
   });
 
-  document.getElementById("timeMemoSheetBackdrop")?.addEventListener("click", closeTimeMemoSheet);
-  document.getElementById("timeMemoSheetCloseBtn")?.addEventListener("click", closeTimeMemoSheet);
+  document.getElementById("backFromTimeNotesBtn")?.addEventListener("click", closeTimeNotesPage);
 
   window.addEventListener("scroll", closeFloatingTimeMenu, true);
   window.addEventListener("resize", closeFloatingTimeMenu);

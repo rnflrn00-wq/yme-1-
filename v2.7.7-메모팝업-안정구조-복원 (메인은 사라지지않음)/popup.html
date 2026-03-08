@@ -27,10 +27,13 @@
       <section class="memo-list-section">
         <div id="memoList"></div>
       </section>
+      <!-- 최근 등록한 메모 영역은 요청에 따라 숨김 처리 -->
+      <!--
       <section class="recent-section">
         <div class="recent-title-row"><div class="recent-title">최근 등록한 메모 (최대 5개)</div><button id="clearRecentHistoryBtn" class="ds-btn ds-btn--ghost ds-btn--xs">기록 삭제</button></div>
         <div id="recentMemoList" class="recent-list"></div>
       </section>
+      -->
     </div>
 
     <section id="memoComposerSheet" class="memo-composer-sheet expanded">
@@ -38,14 +41,6 @@
         <button id="memoSheetToggleBtn" class="memo-sheet-handle" type="button" aria-label="노트 작성 영역 토글"></button>
       </div>
       <div class="memo-composer-body">
-        <div class="toggle-row">
-          <span>플레이어 메모 표시</span>
-          <label class="switch">
-            <input type="checkbox" id="memoVisibleToggle" checked>
-            <span class="slider"></span>
-          </label>
-        </div>
-
         <div id="currentVideo" class="current-video-meta">
           <img id="currentVideoThumb" class="composer-thumbnail" alt="현재 영상 썸네일" />
           <div class="current-video-texts">
@@ -72,11 +67,27 @@
     </div>
 
     <div class="settings-actions">
+      <div class="toggle-row">
+        <span>플레이어 메모 표시</span>
+        <label class="switch">
+          <input type="checkbox" id="memoVisibleToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
       <button id="backupBtn" class="ds-btn ds-btn--ghost">백업(JSON)</button>
       <button id="clearAllDataBtn" class="ds-btn ds-btn--danger">데이터 삭제</button>
       <label for="restoreInput" class="file-btn ds-btn ds-btn--ghost">복원(JSON)</label>
       <input id="restoreInput" type="file" accept="application/json" />
     </div>
+  </section>
+
+  <section id="page-time-notes" class="page">
+    <div class="sub-header">
+      <button id="backFromTimeNotesBtn" class="ds-btn ds-btn--ghost">← 뒤로가기</button>
+      <h3 id="timeNotesPageTitle">타임 노트</h3>
+    </div>
+    <div id="timeNotesPageCount" class="time-notes-count"></div>
+    <div id="timeNotesPageList" class="time-notes-list"></div>
   </section>
 
   <div id="customModal" class="custom-modal">
@@ -87,18 +98,6 @@
         <button id="customModalCancelBtn" class="ds-btn ds-btn--ghost">취소</button>
         <button id="customModalConfirmBtn" class="ds-btn ds-btn--primary">확인</button>
       </div>
-    </div>
-  </div>
-
-  <div id="timeMemoSheet" class="time-memo-sheet">
-    <div id="timeMemoSheetBackdrop" class="time-memo-sheet__backdrop"></div>
-    <div class="time-memo-sheet__panel">
-      <div class="time-memo-sheet__header">
-        <div id="timeMemoSheetTitle" class="time-memo-sheet__title"></div>
-        <button id="timeMemoSheetCloseBtn" class="ds-btn ds-btn--ghost ds-btn--xs">닫기</button>
-      </div>
-      <div id="timeMemoSheetCount" class="time-memo-sheet__count"></div>
-      <div id="timeMemoSheetList" class="time-memo-sheet__list"></div>
     </div>
   </div>
 
