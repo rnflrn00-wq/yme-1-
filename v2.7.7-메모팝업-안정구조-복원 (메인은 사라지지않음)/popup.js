@@ -922,7 +922,7 @@ function bindEvents() {
   });
 
   document.getElementById("memoInput")?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || !event.shiftKey || event.isComposing) return;
+    if (event.key !== "Enter" || !event.altKey || event.shiftKey || event.ctrlKey || event.metaKey || event.isComposing) return;
     event.preventDefault();
     saveCurrentTimeMemo();
   });
