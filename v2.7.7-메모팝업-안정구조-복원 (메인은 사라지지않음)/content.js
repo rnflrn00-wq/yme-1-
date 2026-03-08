@@ -20,6 +20,7 @@ let sidePanelMemoDraft = "";
 let lastSecondaryMemoSignature = "__initial__";
 let lastSecondaryRenderVideoId = null;
 let sidePanelToastHideTimer = null;
+let sidePanelToastText = "";
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -432,13 +433,8 @@ function shouldRenderSecondaryPanel(nextSignature, videoId) {
   return sidePanelRoot.parentElement !== secondary;
 }
 
-function showSidePanelToast(text) {
-  if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
-
-  if (sidePanelToastHideTimer) {
-    clearTimeout(sidePanelToastHideTimer);
-    sidePanelToastHideTimer = null;
-  }
+function upsertSidePanelToastElement() {
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) return null;
 
   let toast = sidePanelRoot.querySelector(".yt-memo-secondary-panel__toast");
   if (!toast) {
@@ -447,12 +443,28 @@ function showSidePanelToast(text) {
     sidePanelRoot.appendChild(toast);
   }
 
-  toast.innerText = text;
+  return toast;
+}
+
+function showSidePanelToast(text) {
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
+
+  sidePanelToastText = text;
+  if (sidePanelToastHideTimer) {
+    clearTimeout(sidePanelToastHideTimer);
+    sidePanelToastHideTimer = null;
+  }
+
+  const toast = upsertSidePanelToastElement();
+  if (!toast) return;
+
+  toast.innerText = sidePanelToastText;
   requestAnimationFrame(() => {
     toast.classList.add("is-visible");
   });
 
   sidePanelToastHideTimer = setTimeout(() => {
+    sidePanelToastText = "";
     toast.classList.remove("is-visible");
     sidePanelToastHideTimer = null;
   }, 1000);
@@ -634,6 +646,14 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   sidePanelRoot.appendChild(baseSection);
   sidePanelRoot.appendChild(timelineSection);
   sidePanelRoot.appendChild(composerSection);
+
+  if (sidePanelToastText) {
+    const toast = upsertSidePanelToastElement();
+    if (toast) {
+      toast.innerText = sidePanelToastText;
+      toast.classList.add("is-visible");
+    }
+  }
 }
 
 function renderProgressMemoDots(memos = []) {
@@ -1204,6 +1224,11 @@ function resetMemoUiStateForNavigation() {
   sidePanelMemoDraft = "";
   lastSecondaryMemoSignature = "";
   lastSecondaryRenderVideoId = null;
+  sidePanelToastText = "";
+  if (sidePanelToastHideTimer) {
+    clearTimeout(sidePanelToastHideTimer);
+    sidePanelToastHideTimer = null;
+  }
   removeExistingMemo();
 }
 
