@@ -76,6 +76,10 @@ function getVideoId() {
   return shortsMatch ? shortsMatch[1] : null;
 }
 
+function isWatchVideoPage() {
+  return location.pathname === "/watch" && Boolean(new URLSearchParams(location.search).get("v"));
+}
+
 function removeExistingMemo() {
   clearMainMemoHideTimer();
   const existing = document.getElementById("yt-memo-box");
@@ -383,6 +387,14 @@ function updateSecondaryPanelActiveState(currentSecond) {
 function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   ensureMemoDetailStyle();
 
+  if (!isWatchVideoPage()) {
+    if (sidePanelRoot) {
+      sidePanelRoot.remove();
+      sidePanelRoot = null;
+    }
+    return;
+  }
+
   const secondary = document.querySelector("#secondary");
   if (!secondary) {
     if (sidePanelRoot) {
@@ -518,7 +530,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
   composerInput.addEventListener("keydown", (event) => {
     event.stopPropagation();
-    if (event.key === "Enter" && event.shiftKey) {
+    if (event.key === "Enter" && event.shiftKey && !event.isComposing) {
       event.preventDefault();
       saveTimeBtn.click();
     }
@@ -546,6 +558,14 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
 function renderProgressMemoDots(memos = []) {
   ensureMemoDetailStyle();
+
+  if (!isWatchVideoPage()) {
+    if (progressDotLayer) {
+      progressDotLayer.remove();
+      progressDotLayer = null;
+    }
+    return;
+  }
 
   const progressContainer = document.querySelector(".ytp-progress-bar-container");
   const video = document.querySelector("video");
@@ -658,7 +678,9 @@ function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
         checkMemos();
-        showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
+        if (replaceBase) {
+          showTimeInsidePopup(`📝 ${memoText.trim()}`);
+        }
       });
     });
     });
