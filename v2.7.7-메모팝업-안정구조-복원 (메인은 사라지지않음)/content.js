@@ -18,6 +18,7 @@ let sidePanelRoot = null;
 let progressDotLayer = null;
 let sidePanelMemoDraft = "";
 let lastSecondaryMemoSignature = "";
+let pendingScrollToMemoTime = null;
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -346,16 +347,6 @@ function getCurrentPlaybackSecond() {
   return Math.max(0, Math.floor(video.currentTime || 0));
 }
 
-function isSidePanelComposerFocused() {
-  const active = document.activeElement;
-  return Boolean(active && active.classList?.contains("yt-memo-secondary-panel__composer-input"));
-}
-
-function blockYoutubeShortcutWhenComposing(event) {
-  if (!isSidePanelComposerFocused()) return;
-  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-  event.stopImmediatePropagation();
-}
 
 function getSecondaryMemoSignature(memos = []) {
   return memos
@@ -468,6 +459,15 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     });
 
     timelineSection.appendChild(timeline);
+
+    if (Number.isFinite(pendingScrollToMemoTime)) {
+      const matchedItems = timeline.querySelectorAll(`.yt-memo-secondary-panel__item[data-time="${pendingScrollToMemoTime}"]`);
+      const targetItem = matchedItems.length ? matchedItems[matchedItems.length - 1] : null;
+      if (targetItem) {
+        targetItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+      pendingScrollToMemoTime = null;
+    }
   }
 
   const composerSection = document.createElement("div");
@@ -525,6 +525,10 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   });
 
   composerInput.addEventListener("keyup", (event) => {
+    event.stopPropagation();
+  });
+
+  composerInput.addEventListener("keypress", (event) => {
     event.stopPropagation();
   });
 
@@ -657,6 +661,9 @@ function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}
         [videoId]: nextData,
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
+        if (!replaceBase) {
+          pendingScrollToMemoTime = safeTime;
+        }
         checkMemos();
         showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
       });

@@ -909,11 +909,17 @@ function bindEvents() {
     if (!currentVideoId || !memoText) return;
 
     withActiveYoutubeTab((time) => {
-      if (!Number.isFinite(time)) {
-        showAlertModal("현재 재생 시간을 가져오지 못했습니다. 영상 재생 후 다시 시도해 주세요.");
+      if (Number.isFinite(time)) {
+        saveMemo(currentVideoId, memoText, time);
         return;
       }
-      saveMemo(currentVideoId, memoText, time);
+
+      if (Number.isFinite(currentPlaybackSecond)) {
+        saveMemo(currentVideoId, memoText, currentPlaybackSecond);
+        return;
+      }
+
+      showAlertModal("현재 재생 시간을 가져오지 못했습니다. 영상 재생 후 다시 시도해 주세요.");
     });
   };
 
