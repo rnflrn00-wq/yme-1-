@@ -21,6 +21,7 @@ let lastSecondaryMemoSignature = "__initial__";
 let lastSecondaryRenderVideoId = null;
 let sidePanelToastHideTimer = null;
 let sidePanelToastText = "";
+let isSecondaryEditMode = false;
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -189,22 +190,67 @@ function ensureMemoDetailStyle() {
       font-family: Roboto, Arial, sans-serif;
     }
 
-    .yt-memo-secondary-panel__title {
-      font-size: 14px;
+    .yt-memo-secondary-panel__head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .yt-memo-secondary-panel__head-btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .yt-memo-secondary-panel__head-title {
+      font-size: 13px;
       font-weight: 700;
-      margin-bottom: 8px;
-      color: #8ab4f8;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .yt-memo-secondary-panel__video {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .yt-memo-secondary-panel__thumb {
+      width: 110px;
+      height: 62px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .yt-memo-secondary-panel__channel {
+      font-size: 11px;
+      color: rgba(255,255,255,0.72);
+      margin-bottom: 4px;
+    }
+
+    .yt-memo-secondary-panel__video-title {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.35;
+      word-break: break-word;
     }
 
     .yt-memo-secondary-panel__section {
       margin-bottom: 10px;
     }
 
-    .yt-memo-secondary-panel__label {
-      font-size: 12px;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.7);
+    .yt-memo-secondary-panel__section-title {
+      font-size: 13px;
+      font-weight: 700;
       margin-bottom: 6px;
+      color: #8ab4f8;
     }
 
     .yt-memo-secondary-panel__base,
@@ -216,18 +262,73 @@ function ensureMemoDetailStyle() {
       word-break: break-word;
     }
 
+    .yt-memo-secondary-panel__row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .yt-memo-secondary-panel__more {
+      border: 0;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 28px;
+      height: 24px;
+    }
+
+    .yt-memo-secondary-panel__more-menu {
+      display: none;
+      gap: 6px;
+    }
+
+    .yt-memo-secondary-panel__more-menu.is-open {
+      display: flex;
+    }
+
+    .yt-memo-secondary-panel__menu-btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #111;
+      background: #8ab4f8;
+    }
+
+    .yt-memo-secondary-panel__menu-btn--danger {
+      color: #fff;
+      background: #c62828;
+    }
+
     .yt-memo-secondary-panel__timeline {
       display: flex;
       flex-direction: column;
       gap: 6px;
       max-height: min(34vh, 320px);
       overflow-y: auto;
+      scrollbar-gutter: stable both-edges;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(138, 180, 248, 0.95) transparent;
       padding-right: 2px;
+    }
+
+    .yt-memo-secondary-panel__timeline::-webkit-scrollbar { width: 8px; }
+    .yt-memo-secondary-panel__timeline::-webkit-scrollbar-track { background: transparent; }
+    .yt-memo-secondary-panel__timeline::-webkit-scrollbar-thumb {
+      background: rgba(138, 180, 248, 0.95);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: content-box;
     }
 
     .yt-memo-secondary-panel__item {
       display: grid;
-      grid-template-columns: auto 1fr;
+      grid-template-columns: 1fr auto;
       gap: 8px;
       width: 100%;
       border: 0;
@@ -235,18 +336,24 @@ function ensureMemoDetailStyle() {
       background: rgba(255, 255, 255, 0.06);
       padding: 7px 8px;
       text-align: left;
-      cursor: pointer;
       color: inherit;
     }
 
-    .yt-memo-secondary-panel__item:hover {
-      background: rgba(138, 180, 248, 0.18);
+    .yt-memo-secondary-panel__item-main {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      text-align: left;
+      color: inherit;
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
     }
 
-    .yt-memo-secondary-panel__item.is-active {
-      background: rgba(138, 180, 248, 0.34);
-      border: 1px solid rgba(138, 180, 248, 0.65);
-    }
+    .yt-memo-secondary-panel__item:hover { background: rgba(138, 180, 248, 0.18); }
+    .yt-memo-secondary-panel__item.is-active { background: rgba(138, 180, 248, 0.34); border: 1px solid rgba(138, 180, 248, 0.65); }
 
     .yt-memo-secondary-panel__time {
       font-size: 12px;
@@ -263,7 +370,6 @@ function ensureMemoDetailStyle() {
       line-height: 1.35;
     }
 
-
     .yt-memo-secondary-panel__composer {
       margin-top: 10px;
       padding-top: 10px;
@@ -273,14 +379,11 @@ function ensureMemoDetailStyle() {
       gap: 8px;
     }
 
-    .yt-memo-secondary-panel__composer-time {
-      font-size: 12px;
-      color: rgba(255,255,255,0.72);
-    }
+    .yt-memo-secondary-panel__composer-time { font-size: 12px; color: rgba(255,255,255,0.72); }
 
     .yt-memo-secondary-panel__composer-input {
       min-height: 62px;
-      resize: vertical;
+      resize: none;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.08);
@@ -290,11 +393,7 @@ function ensureMemoDetailStyle() {
       outline: none;
     }
 
-    .yt-memo-secondary-panel__composer-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
+    .yt-memo-secondary-panel__composer-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
     .yt-memo-secondary-panel__composer-btn {
       border: 0;
@@ -305,10 +404,25 @@ function ensureMemoDetailStyle() {
       color: #111;
       background: #8ab4f8;
       cursor: pointer;
+      position: relative;
     }
 
-    .yt-memo-secondary-panel__composer-btn--base {
-      background: rgba(255,255,255,0.75);
+    .yt-memo-secondary-panel__composer-btn--base { background: rgba(255,255,255,0.75); }
+
+    .yt-memo-secondary-panel__composer-btn--time:hover::after,
+    .yt-memo-secondary-panel__composer-btn--time:focus-visible::after {
+      content: "shift+enter";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: calc(100% + 6px);
+      font-size: 11px;
+      color: #fff;
+      background: rgba(0,0,0,0.9);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      padding: 3px 6px;
+      white-space: nowrap;
     }
 
     .yt-memo-secondary-panel__toast {
@@ -336,18 +450,9 @@ function ensureMemoDetailStyle() {
       text-overflow: ellipsis;
     }
 
-    .yt-memo-secondary-panel__toast.is-visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    .yt-memo-secondary-panel__toast.is-visible { opacity: 1; transform: translateY(0); }
 
-    .yt-memo-progress-dot-layer {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 35;
-    }
-
+    .yt-memo-progress-dot-layer { position: absolute; inset: 0; pointer-events: none; z-index: 35; }
     .yt-memo-progress-dot {
       position: absolute;
       top: 50%;
@@ -360,10 +465,7 @@ function ensureMemoDetailStyle() {
     }
 
     @media (max-width: 1200px) {
-      #yt-memo-secondary-panel {
-        margin-bottom: 10px;
-        padding: 10px;
-      }
+      #yt-memo-secondary-panel { margin-bottom: 10px; padding: 10px; }
     }
   `;
 
@@ -470,6 +572,63 @@ function showSidePanelToast(text) {
   }, 1000);
 }
 
+function updateMemoByTime(videoId, targetTime, nextText) {
+  const didStartRead = withSafeChromeCall(() => {
+    chrome.storage.local.get([videoId], (result) => {
+      const raw = result[videoId];
+      const currentMemos = Array.isArray(raw?.memos)
+        ? raw.memos.filter((memo) => memo && typeof memo.text === "string")
+        : getNormalizedMemos(raw);
+      const index = currentMemos.findIndex((memo) => Number(memo.time) === Number(targetTime));
+      if (index < 0) return;
+      currentMemos[index] = {
+        ...currentMemos[index],
+        time: Number.isFinite(currentMemos[index].time) ? Math.max(0, Math.floor(currentMemos[index].time)) : 0,
+        text: nextText,
+        createdAt: Date.now()
+      };
+      const meta = getCurrentVideoMeta(videoId);
+      chrome.storage.local.set({
+        [videoId]: {
+          title: raw?.title || meta.title,
+          channel: raw?.channel || meta.channel,
+          thumbnail: raw?.thumbnail || meta.thumbnail,
+          memos: currentMemos
+        }
+      });
+    });
+  });
+
+  if (!didStartRead) return;
+}
+
+function deleteMemoByTime(videoId, targetTime) {
+  const didStartRead = withSafeChromeCall(() => {
+    chrome.storage.local.get([videoId], (result) => {
+      const raw = result[videoId];
+      const currentMemos = Array.isArray(raw?.memos)
+        ? raw.memos.filter((memo) => memo && typeof memo.text === "string")
+        : getNormalizedMemos(raw);
+      const nextMemos = currentMemos.filter((memo) => Number(memo.time) !== Number(targetTime));
+      if (!nextMemos.length) {
+        chrome.storage.local.remove(videoId);
+        return;
+      }
+      const meta = getCurrentVideoMeta(videoId);
+      chrome.storage.local.set({
+        [videoId]: {
+          title: raw?.title || meta.title,
+          channel: raw?.channel || meta.channel,
+          thumbnail: raw?.thumbnail || meta.thumbnail,
+          memos: nextMemos
+        }
+      });
+    });
+  });
+
+  if (!didStartRead) return;
+}
+
 function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   ensureMemoDetailStyle();
 
@@ -504,36 +663,124 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   const timeMemos = memos
     .filter((memo) => memo.time > 0)
     .sort((a, b) => a.time - b.time);
+  const videoId = getVideoId();
+  const meta = getCurrentVideoMeta(videoId);
 
   sidePanelRoot.innerHTML = "";
 
-  const title = document.createElement("div");
-  title.className = "yt-memo-secondary-panel__title";
-  title.innerText = "노트 상세";
+  const head = document.createElement("div");
+  head.className = "yt-memo-secondary-panel__head";
+
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.className = "yt-memo-secondary-panel__head-btn";
+  backBtn.innerText = "←";
+  backBtn.title = "상단으로 이동";
+  backBtn.addEventListener("click", () => {
+    sidePanelRoot.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  const headTitle = document.createElement("div");
+  headTitle.className = "yt-memo-secondary-panel__head-title";
+  headTitle.innerText = "Note List";
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "yt-memo-secondary-panel__head-btn";
+  editBtn.innerText = isSecondaryEditMode ? "Done" : "Edit";
+  editBtn.addEventListener("click", () => {
+    isSecondaryEditMode = !isSecondaryEditMode;
+    lastSecondaryMemoSignature = "__force_edit_toggle__";
+  });
+
+  head.appendChild(backBtn);
+  head.appendChild(headTitle);
+  head.appendChild(editBtn);
+
+  const topVideo = document.createElement("div");
+  topVideo.className = "yt-memo-secondary-panel__video";
+
+  const thumb = document.createElement("img");
+  thumb.className = "yt-memo-secondary-panel__thumb";
+  thumb.src = meta.thumbnail;
+  thumb.alt = "영상 썸네일";
+
+  const topTexts = document.createElement("div");
+  const channel = document.createElement("div");
+  channel.className = "yt-memo-secondary-panel__channel";
+  channel.innerText = meta.channel;
+  const videoTitle = document.createElement("div");
+  videoTitle.className = "yt-memo-secondary-panel__video-title";
+  videoTitle.innerText = meta.title;
+  topTexts.appendChild(channel);
+  topTexts.appendChild(videoTitle);
+
+  topVideo.appendChild(thumb);
+  topVideo.appendChild(topTexts);
 
   const baseSection = document.createElement("div");
   baseSection.className = "yt-memo-secondary-panel__section";
+  const baseTitle = document.createElement("div");
+  baseTitle.className = "yt-memo-secondary-panel__section-title";
+  baseTitle.innerText = "General Notes";
 
-  const baseLabel = document.createElement("div");
-  baseLabel.className = "yt-memo-secondary-panel__label";
-  baseLabel.innerText = "기본 노트";
+  const baseRow = document.createElement("div");
+  baseRow.className = "yt-memo-secondary-panel__row";
 
   const baseContent = document.createElement("div");
-  baseContent.className = baseMemo
-    ? "yt-memo-secondary-panel__base"
-    : "yt-memo-secondary-panel__empty";
+  baseContent.className = baseMemo ? "yt-memo-secondary-panel__base" : "yt-memo-secondary-panel__empty";
   baseContent.innerText = baseMemo || "등록된 기본 노트가 없습니다.";
+  baseRow.appendChild(baseContent);
 
-  baseSection.appendChild(baseLabel);
-  baseSection.appendChild(baseContent);
+  if (isSecondaryEditMode && baseMemo) {
+    const actionWrap = document.createElement("div");
+    const moreBtn = document.createElement("button");
+    moreBtn.type = "button";
+    moreBtn.className = "yt-memo-secondary-panel__more";
+    moreBtn.innerText = "⋯";
+
+    const menu = document.createElement("div");
+    menu.className = "yt-memo-secondary-panel__more-menu";
+
+    const editBase = document.createElement("button");
+    editBase.type = "button";
+    editBase.className = "yt-memo-secondary-panel__menu-btn";
+    editBase.innerText = "수정";
+    editBase.addEventListener("click", () => {
+      const next = prompt("기본 메모 수정", baseMemo);
+      if (!next || !next.trim()) return;
+      updateMemoByTime(videoId, 0, next.trim());
+    });
+
+    const deleteBase = document.createElement("button");
+    deleteBase.type = "button";
+    deleteBase.className = "yt-memo-secondary-panel__menu-btn yt-memo-secondary-panel__menu-btn--danger";
+    deleteBase.innerText = "삭제";
+    deleteBase.addEventListener("click", () => {
+      if (!confirm("기본 메모를 삭제할까요?")) return;
+      deleteMemoByTime(videoId, 0);
+    });
+
+    moreBtn.addEventListener("click", () => {
+      menu.classList.toggle("is-open");
+    });
+
+    menu.appendChild(editBase);
+    menu.appendChild(deleteBase);
+    actionWrap.appendChild(moreBtn);
+    actionWrap.appendChild(menu);
+    baseRow.appendChild(actionWrap);
+  }
+
+  baseSection.appendChild(baseTitle);
+  baseSection.appendChild(baseRow);
 
   const timelineSection = document.createElement("div");
   timelineSection.className = "yt-memo-secondary-panel__section";
-
-  const timelineLabel = document.createElement("div");
-  timelineLabel.className = "yt-memo-secondary-panel__label";
-  timelineLabel.innerText = "타임노트 타임라인";
-  timelineSection.appendChild(timelineLabel);
+  const timelineTitle = document.createElement("div");
+  timelineTitle.className = "yt-memo-secondary-panel__section-title";
+  timelineTitle.innerText = "Time Notes";
+  timelineSection.appendChild(timelineTitle);
 
   if (!timeMemos.length) {
     const empty = document.createElement("div");
@@ -545,12 +792,15 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     timeline.className = "yt-memo-secondary-panel__timeline";
 
     timeMemos.forEach((memo) => {
-      const item = document.createElement("button");
-      item.type = "button";
+      const item = document.createElement("div");
       item.className = "yt-memo-secondary-panel__item";
       item.dataset.time = String(memo.time);
       const isActive = Math.abs(memo.time - currentSecond) <= 1;
       if (isActive) item.classList.add("is-active");
+
+      const itemMain = document.createElement("button");
+      itemMain.type = "button";
+      itemMain.className = "yt-memo-secondary-panel__item-main";
 
       const timeText = document.createElement("span");
       timeText.className = "yt-memo-secondary-panel__time";
@@ -560,11 +810,50 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
       memoText.className = "yt-memo-secondary-panel__text";
       memoText.innerText = memo.text;
 
-      item.appendChild(timeText);
-      item.appendChild(memoText);
-      item.addEventListener("click", () => {
+      itemMain.appendChild(timeText);
+      itemMain.appendChild(memoText);
+      itemMain.addEventListener("click", () => {
         seekCurrentVideoTo(memo.time);
       });
+      item.appendChild(itemMain);
+
+      if (isSecondaryEditMode) {
+        const actionWrap = document.createElement("div");
+        const moreBtn = document.createElement("button");
+        moreBtn.type = "button";
+        moreBtn.className = "yt-memo-secondary-panel__more";
+        moreBtn.innerText = "⋯";
+
+        const menu = document.createElement("div");
+        menu.className = "yt-memo-secondary-panel__more-menu";
+
+        const editTime = document.createElement("button");
+        editTime.type = "button";
+        editTime.className = "yt-memo-secondary-panel__menu-btn";
+        editTime.innerText = "수정";
+        editTime.addEventListener("click", () => {
+          const next = prompt("타임 메모 수정", memo.text);
+          if (!next || !next.trim()) return;
+          updateMemoByTime(videoId, memo.time, next.trim());
+        });
+
+        const deleteTime = document.createElement("button");
+        deleteTime.type = "button";
+        deleteTime.className = "yt-memo-secondary-panel__menu-btn yt-memo-secondary-panel__menu-btn--danger";
+        deleteTime.innerText = "삭제";
+        deleteTime.addEventListener("click", () => {
+          if (!confirm("타임 메모를 삭제할까요?")) return;
+          deleteMemoByTime(videoId, memo.time);
+        });
+
+        moreBtn.addEventListener("click", () => menu.classList.toggle("is-open"));
+
+        menu.appendChild(editTime);
+        menu.appendChild(deleteTime);
+        actionWrap.appendChild(moreBtn);
+        actionWrap.appendChild(menu);
+        item.appendChild(actionWrap);
+      }
 
       timeline.appendChild(item);
     });
@@ -576,7 +865,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   composerSection.className = "yt-memo-secondary-panel__composer";
 
   const composerLabel = document.createElement("div");
-  composerLabel.className = "yt-memo-secondary-panel__label";
+  composerLabel.className = "yt-memo-secondary-panel__section-title";
   composerLabel.innerText = "기본/타임노트 빠른 등록";
 
   const composerTime = document.createElement("div");
@@ -606,7 +895,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
   const saveTimeBtn = document.createElement("button");
   saveTimeBtn.type = "button";
-  saveTimeBtn.className = "yt-memo-secondary-panel__composer-btn";
+  saveTimeBtn.className = "yt-memo-secondary-panel__composer-btn yt-memo-secondary-panel__composer-btn--time";
   saveTimeBtn.innerText = "현재 시간 저장";
   saveTimeBtn.addEventListener("click", () => {
     const nextText = composerInput.value.trim();
@@ -642,7 +931,8 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   composerSection.appendChild(composerInput);
   composerSection.appendChild(composerActionRow);
 
-  sidePanelRoot.appendChild(title);
+  sidePanelRoot.appendChild(head);
+  sidePanelRoot.appendChild(topVideo);
   sidePanelRoot.appendChild(baseSection);
   sidePanelRoot.appendChild(timelineSection);
   sidePanelRoot.appendChild(composerSection);

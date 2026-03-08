@@ -9,6 +9,35 @@ body {
   font-size: var(--ds-font-size);
 }
 
+.scrollbar-minimal {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ds-color-accent) 65%, transparent) transparent;
+  scrollbar-gutter: stable both-edges;
+}
+
+.scrollbar-minimal::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ds-color-accent) 65%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-button,
+.scrollbar-minimal::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .page { display: none; width: 100%; height: 100%; }
 .page.active { display: flex; flex-direction: column; }
 #page-main { position: relative; }
@@ -43,10 +72,12 @@ body {
 .clear-search-btn.visible { display: block; }
 
 .main-scroll-area {
+
   --composer-offset: 190px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
   padding: var(--ds-size) var(--ds-size) var(--composer-offset);
   display: flex;
   flex-direction: column;
@@ -104,6 +135,15 @@ body {
 .memo-item .main-actions,
 .memo-item .actions { display: flex; align-items: center; gap: calc(var(--ds-size) / 2); }
 
+.memo-chip-btn {
+  min-width: calc(var(--ds-size) * 8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
 .video-nav-btn { min-width: calc(var(--ds-size) * 8); }
 .video-nav-btn.is-playing {
   border-color: var(--ds-color-accent);
@@ -158,7 +198,8 @@ body {
   margin: var(--ds-size);
   border: 1px solid color-mix(in srgb, var(--ds-color-ink) 15%, var(--ds-color-bg));
   border-radius: var(--ds-size);
-  overflow: auto;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
 }
 .time-notes-list .time-memo {
   min-height: 36px;
