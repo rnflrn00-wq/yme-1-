@@ -917,8 +917,12 @@ function bindEvents() {
     });
   };
 
+  document.getElementById("saveTimeBtn")?.addEventListener("click", () => {
+    saveCurrentTimeMemo();
+  });
+
   document.getElementById("memoInput")?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || !event.shiftKey) return;
+    if (event.key !== "Enter" || !event.altKey || event.shiftKey || event.ctrlKey || event.metaKey || event.isComposing) return;
     event.preventDefault();
     saveCurrentTimeMemo();
   });

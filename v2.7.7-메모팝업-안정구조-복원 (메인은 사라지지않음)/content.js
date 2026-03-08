@@ -18,6 +18,7 @@ let sidePanelRoot = null;
 let progressDotLayer = null;
 let sidePanelMemoDraft = "";
 let lastSecondaryMemoSignature = "";
+let isSidePanelInputActive = false;
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -74,6 +75,10 @@ function getVideoId() {
 
   const shortsMatch = location.pathname.match(/^\/shorts\/([^/?]+)/);
   return shortsMatch ? shortsMatch[1] : null;
+}
+
+function isWatchVideoPage() {
+  return location.pathname === "/watch" && Boolean(new URLSearchParams(location.search).get("v"));
 }
 
 function removeExistingMemo() {
@@ -347,13 +352,30 @@ function getCurrentPlaybackSecond() {
 }
 
 function isSidePanelComposerFocused() {
+  if (isSidePanelInputActive) return true;
   const active = document.activeElement;
   return Boolean(active && active.classList?.contains("yt-memo-secondary-panel__composer-input"));
 }
 
+function isAllowedEditorShortcut(event) {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
+  const key = String(event.key || "").toLowerCase();
+  return ["a", "c", "v", "x", "z", "y"].includes(key);
+}
+
+function isAltEnterSaveShortcut(event) {
+  return event.key === "Enter"
+    && event.altKey
+    && !event.shiftKey
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.isComposing;
+}
+
 function blockYoutubeShortcutWhenComposing(event) {
   if (!isSidePanelComposerFocused()) return;
-  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.defaultPrevented) return;
+  if (isAllowedEditorShortcut(event) || isAltEnterSaveShortcut(event)) return;
   event.stopImmediatePropagation();
 }
 
@@ -383,11 +405,21 @@ function updateSecondaryPanelActiveState(currentSecond) {
 function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   ensureMemoDetailStyle();
 
+  if (!isWatchVideoPage()) {
+    if (sidePanelRoot) {
+      sidePanelRoot.remove();
+      sidePanelRoot = null;
+      isSidePanelInputActive = false;
+    }
+    return;
+  }
+
   const secondary = document.querySelector("#secondary");
   if (!secondary) {
     if (sidePanelRoot) {
       sidePanelRoot.remove();
       sidePanelRoot = null;
+      isSidePanelInputActive = false;
     }
     return;
   }
@@ -395,6 +427,20 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   if (!sidePanelRoot || !sidePanelRoot.isConnected) {
     sidePanelRoot = document.createElement("section");
     sidePanelRoot.id = "yt-memo-secondary-panel";
+    sidePanelRoot.addEventListener("focusin", (event) => {
+      const target = event.target;
+      if (target?.classList?.contains("yt-memo-secondary-panel__composer-input")) {
+        isSidePanelInputActive = true;
+      }
+    });
+    sidePanelRoot.addEventListener("focusout", () => {
+      setTimeout(() => {
+        const active = document.activeElement;
+        isSidePanelInputActive = Boolean(
+          active && active.classList?.contains("yt-memo-secondary-panel__composer-input")
+        );
+      }, 0);
+    });
     secondary.insertBefore(sidePanelRoot, secondary.firstChild || null);
   }
 
@@ -518,7 +564,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
   composerInput.addEventListener("keydown", (event) => {
     event.stopPropagation();
-    if (event.key === "Enter" && event.shiftKey) {
+    if (isAltEnterSaveShortcut(event)) {
       event.preventDefault();
       saveTimeBtn.click();
     }
@@ -546,6 +592,14 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
 function renderProgressMemoDots(memos = []) {
   ensureMemoDetailStyle();
+
+  if (!isWatchVideoPage()) {
+    if (progressDotLayer) {
+      progressDotLayer.remove();
+      progressDotLayer = null;
+    }
+    return;
+  }
 
   const progressContainer = document.querySelector(".ytp-progress-bar-container");
   const video = document.querySelector("video");
@@ -658,7 +712,9 @@ function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
         checkMemos();
-        showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
+        if (replaceBase) {
+          showTimeInsidePopup(`📝 ${memoText.trim()}`);
+        }
       });
     });
     });
@@ -690,7 +746,7 @@ function openCoachMark(button, time) {
   input.className = "yt-memo-coach__input";
   input.placeholder = "메모를 입력하세요";
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && event.shiftKey) {
+    if (isAltEnterSaveShortcut(event)) {
       event.preventDefault();
       saveTimeMemoFromCoach(time, input.value);
       closeCoachMark();
@@ -707,7 +763,7 @@ function openCoachMark(button, time) {
 
   const saveBtn = document.createElement("button");
   saveBtn.className = "yt-memo-coach__btn yt-memo-coach__btn--save";
-  saveBtn.innerText = "저장(shift+enter)";
+  saveBtn.innerText = "저장(alt+enter)";
   saveBtn.addEventListener("click", () => {
     saveTimeMemoFromCoach(time, input.value);
     closeCoachMark();
@@ -1101,6 +1157,7 @@ urlObserver = new MutationObserver(() => {
   closedByUser = false;
   sidePanelMemoDraft = "";
   lastSecondaryMemoSignature = "";
+  isSidePanelInputActive = false;
   removeExistingMemo();
 
   setTimeout(() => {
