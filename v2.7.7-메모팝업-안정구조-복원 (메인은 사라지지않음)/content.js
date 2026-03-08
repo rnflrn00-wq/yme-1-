@@ -283,8 +283,13 @@ function ensureMemoDetailStyle() {
       outline: none;
     }
 
+    .yt-memo-secondary-panel__composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
     .yt-memo-secondary-panel__composer-btn {
-      align-self: flex-end;
       border: 0;
       border-radius: 999px;
       padding: 6px 12px;
@@ -293,6 +298,10 @@ function ensureMemoDetailStyle() {
       color: #111;
       background: #8ab4f8;
       cursor: pointer;
+    }
+
+    .yt-memo-secondary-panel__composer-btn--base {
+      background: rgba(255,255,255,0.75);
     }
 
     .yt-memo-progress-dot-layer {
@@ -329,6 +338,23 @@ function seekCurrentVideoTo(time) {
   if (!video) return;
   video.currentTime = Math.max(0, Number.isFinite(time) ? time : 0);
   video.play().catch(() => {});
+}
+
+function getCurrentPlaybackSecond() {
+  const video = document.querySelector("video");
+  if (!video) return 0;
+  return Math.max(0, Math.floor(video.currentTime || 0));
+}
+
+function isSidePanelComposerFocused() {
+  const active = document.activeElement;
+  return Boolean(active && active.classList?.contains("yt-memo-secondary-panel__composer-input"));
+}
+
+function blockYoutubeShortcutWhenComposing(event) {
+  if (!isSidePanelComposerFocused()) return;
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+  event.stopImmediatePropagation();
 }
 
 function getSecondaryMemoSignature(memos = []) {
@@ -449,7 +475,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
 
   const composerLabel = document.createElement("div");
   composerLabel.className = "yt-memo-secondary-panel__label";
-  composerLabel.innerText = "타임노트 빠른 등록";
+  composerLabel.innerText = "기본/타임노트 빠른 등록";
 
   const composerTime = document.createElement("div");
   composerTime.className = "yt-memo-secondary-panel__composer-time";
@@ -463,29 +489,54 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     sidePanelMemoDraft = composerInput.value;
   });
 
-  const composerBtn = document.createElement("button");
-  composerBtn.type = "button";
-  composerBtn.className = "yt-memo-secondary-panel__composer-btn";
-  composerBtn.innerText = "현재 시간에 저장";
-  composerBtn.addEventListener("click", () => {
+  const saveBaseBtn = document.createElement("button");
+  saveBaseBtn.type = "button";
+  saveBaseBtn.className = "yt-memo-secondary-panel__composer-btn yt-memo-secondary-panel__composer-btn--base";
+  saveBaseBtn.innerText = "기본 노트 저장";
+  saveBaseBtn.addEventListener("click", () => {
     const nextText = composerInput.value.trim();
     if (!nextText) return;
-    saveTimeMemoFromCoach(currentSecond, nextText);
+    saveMemoFromInlineComposer(0, nextText, { replaceBase: true });
     sidePanelMemoDraft = "";
     composerInput.value = "";
+    composerInput.blur();
+  });
+
+  const saveTimeBtn = document.createElement("button");
+  saveTimeBtn.type = "button";
+  saveTimeBtn.className = "yt-memo-secondary-panel__composer-btn";
+  saveTimeBtn.innerText = "현재 시간 저장";
+  saveTimeBtn.addEventListener("click", () => {
+    const nextText = composerInput.value.trim();
+    if (!nextText) return;
+    const liveSecond = getCurrentPlaybackSecond();
+    saveMemoFromInlineComposer(liveSecond, nextText);
+    sidePanelMemoDraft = "";
+    composerInput.value = "";
+    composerInput.blur();
   });
 
   composerInput.addEventListener("keydown", (event) => {
+    event.stopPropagation();
     if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
-      composerBtn.click();
+      saveTimeBtn.click();
     }
   });
+
+  composerInput.addEventListener("keyup", (event) => {
+    event.stopPropagation();
+  });
+
+  const composerActionRow = document.createElement("div");
+  composerActionRow.className = "yt-memo-secondary-panel__composer-actions";
+  composerActionRow.appendChild(saveBaseBtn);
+  composerActionRow.appendChild(saveTimeBtn);
 
   composerSection.appendChild(composerLabel);
   composerSection.appendChild(composerTime);
   composerSection.appendChild(composerInput);
-  composerSection.appendChild(composerBtn);
+  composerSection.appendChild(composerActionRow);
 
   sidePanelRoot.appendChild(title);
   sidePanelRoot.appendChild(baseSection);
@@ -554,7 +605,7 @@ function getCurrentVideoMeta(videoId) {
   };
 }
 
-function saveTimeMemoFromCoach(time, memoText) {
+function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}) {
   const videoId = getVideoId();
   if (!videoId || !memoText.trim()) return;
 
@@ -567,23 +618,27 @@ function saveTimeMemoFromCoach(time, memoText) {
     const timeMemos = currentMemos.filter((memo) => Number(memo.time) > 0);
     const baseMemo = currentMemos.find((memo) => Number(memo.time) === 0);
     const meta = getCurrentVideoMeta(videoId);
+    const safeTime = Number.isFinite(time) ? Math.max(0, Math.floor(time)) : 0;
+    const nextBaseMemo = replaceBase
+      ? { time: 0, text: memoText.trim(), createdAt: Date.now() }
+      : (baseMemo ? {
+        time: Number.isFinite(baseMemo.time) ? Math.max(0, Math.floor(baseMemo.time)) : 0,
+        text: baseMemo.text,
+        createdAt: Number.isFinite(baseMemo.createdAt) ? baseMemo.createdAt : Date.now() - 1
+      } : null);
 
     const nextData = {
       title: raw?.title || meta.title,
       channel: raw?.channel || meta.channel,
       thumbnail: raw?.thumbnail || meta.thumbnail,
       memos: [
-        ...(baseMemo ? [{
-          time: Number.isFinite(baseMemo.time) ? Math.max(0, Math.floor(baseMemo.time)) : 0,
-          text: baseMemo.text,
-          createdAt: Number.isFinite(baseMemo.createdAt) ? baseMemo.createdAt : Date.now() - 1
-        }] : []),
+        ...(nextBaseMemo ? [nextBaseMemo] : []),
         ...timeMemos.map((memo) => ({
           time: Number.isFinite(memo.time) ? Math.max(0, Math.floor(memo.time)) : 0,
           text: memo.text,
           createdAt: Number.isFinite(memo.createdAt) ? memo.createdAt : Date.now() - 1
         })),
-        { time, text: memoText.trim(), createdAt: Date.now() }
+        ...(replaceBase ? [] : [{ time: safeTime, text: memoText.trim(), createdAt: Date.now() }])
       ]
     };
 
@@ -593,7 +648,7 @@ function saveTimeMemoFromCoach(time, memoText) {
         videoId,
         title: nextData.title,
         thumbnail: nextData.thumbnail,
-        time,
+        time: safeTime,
         text: memoText.trim(),
         createdAt: Date.now()
       });
@@ -603,13 +658,17 @@ function saveTimeMemoFromCoach(time, memoText) {
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
         checkMemos();
-        showTimeInsidePopup(`⏱ ${memoText.trim()}`);
+        showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
       });
     });
     });
   });
 
   if (!didStartRead) return;
+}
+
+function saveTimeMemoFromCoach(time, memoText) {
+  saveMemoFromInlineComposer(time, memoText);
 }
 
 function openCoachMark(button, time) {
@@ -1075,6 +1134,10 @@ document.addEventListener("click", (event) => {
   if (coachMark.contains(event.target)) return;
   closeCoachMark();
 });
+
+document.addEventListener("keydown", blockYoutubeShortcutWhenComposing, true);
+document.addEventListener("keyup", blockYoutubeShortcutWhenComposing, true);
+document.addEventListener("keypress", blockYoutubeShortcutWhenComposing, true);
 
 window.addEventListener("resize", () => {
   if (!isExtensionContextValid()) return;

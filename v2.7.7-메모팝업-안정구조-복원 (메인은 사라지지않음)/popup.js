@@ -1050,10 +1050,14 @@ function startPlaybackTimePolling() {
 
 function updateMemoActionButtons() {
   const baseBtn = document.getElementById("saveBaseMemoBtn");
-  if (!baseBtn) return;
+  const timeBtn = document.getElementById("saveTimeBtn");
+  if (!baseBtn || !timeBtn) return;
 
   const hasVideo = Boolean(currentVideoId);
+  const canSaveTime = hasVideo && isCurrentPageWatch && !isCurrentPageShorts;
+
   baseBtn.disabled = !hasVideo;
+  timeBtn.disabled = !canSaveTime;
 }
 
 function initCurrentTabVideo() {
