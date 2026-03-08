@@ -65,6 +65,11 @@ function formatTime(seconds) {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+function sanitizeVideoTitle(titleText) {
+  if (typeof titleText !== "string") return "";
+  return titleText.replace(/^\(\d+\)\s*/, "").trim();
+}
+
 function normalizeMemoData(videoId, rawData) {
   if (rawData && typeof rawData === "object" && Array.isArray(rawData.memos)) {
     return {
@@ -700,9 +705,19 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
   const mainActions = document.createElement("div");
   mainActions.className = "main-actions";
 
+  const timeMemoBtn = createActionButton({
+    label: `📝 타임메모 ${displayedTimeMemos.length}`,
+    className: "memo-chip-btn",
+    title: "타임메모 페이지 열기",
+    onClick: (event) => {
+      event.stopPropagation();
+      openTimeNotesPage({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
+    }
+  });
+
   const videoNavBtn = createActionButton({
-    label: isPlayingVideo ? "⏸ 재생중" : "▶ 이동",
-    className: `video-nav-btn${isPlayingVideo ? " is-playing" : ""}`,
+    label: isPlayingVideo ? "⏸ 재생중" : "▶ 플레이",
+    className: `memo-chip-btn video-nav-btn${isPlayingVideo ? " is-playing" : ""}`,
     title: isPlayingVideo ? "현재 재생중인 영상" : "이 영상으로 이동",
     onClick: (event) => {
       event.stopPropagation();
@@ -711,22 +726,13 @@ function buildMemoItem({ videoId, title, thumbnail, baseMemo, displayedTimeMemos
     }
   });
 
+  mainActions.appendChild(timeMemoBtn);
   mainActions.appendChild(videoNavBtn);
   memoContainer.appendChild(memoTextArea);
   memoContainer.appendChild(mainActions);
   mainMemo.appendChild(thumb);
   mainMemo.appendChild(memoContainer);
   memoItem.appendChild(mainMemo);
-
-  const timeHeader = document.createElement("div");
-  timeHeader.className = "time-memo-header click-target";
-  timeHeader.innerText = `Time memo ${displayedTimeMemos.length} · 페이지에서 보기`;
-  memoItem.appendChild(timeHeader);
-
-  timeHeader.onclick = (event) => {
-    event.stopPropagation();
-    openTimeNotesPage({ videoId, title, displayedTimeMemos, isPlayingVideo, playingSecond });
-  };
 
   return memoItem;
 }
@@ -1076,7 +1082,7 @@ function initCurrentTabVideo() {
     isCurrentPageShorts = pageType.isShorts;
 
     currentVideoTitleText = currentVideoId
-      ? (activeTab?.title || "영상 제목 없음")
+      ? sanitizeVideoTitle(activeTab?.title || "영상 제목 없음")
       : "유튜브 영상 페이지가 아닙니다.";
 
     setCurrentVideoMeta({ title: currentVideoTitleText, timeText: "00:00" });
