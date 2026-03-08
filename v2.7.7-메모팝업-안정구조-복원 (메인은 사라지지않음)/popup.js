@@ -808,21 +808,36 @@ function renderList(filterText) {
   });
 
   if (playingVideoData) {
-    const playingGroup = document.createElement("section");
-    playingGroup.className = "channel-group is-playing-channel";
+    const lowerTitle = playingVideoData.title.toLowerCase();
+    const lowerChannel = playingChannelName.toLowerCase();
+    const playingBaseMatched = Boolean(playingVideoData.baseMemo
+      && (!filterText || playingVideoData.baseMemo.text.toLowerCase().includes(filterText)));
+    const playingMatchedTimeMemos = !filterText
+      ? playingVideoData.displayedTimeMemos
+      : playingVideoData.displayedTimeMemos.filter((memo) => memo.text.toLowerCase().includes(filterText));
+    const playingTitleMatched = !filterText || lowerTitle.includes(filterText);
+    const playingChannelMatched = !filterText || lowerChannel.includes(filterText);
 
-    const category = document.createElement("div");
-    category.className = "channel-category";
-    category.innerText = "현재 재생중";
-    playingGroup.appendChild(category);
+    if (!filterText || playingTitleMatched || playingChannelMatched || playingBaseMatched || playingMatchedTimeMemos.length > 0) {
+      const playingGroup = document.createElement("section");
+      playingGroup.className = "channel-group is-playing-channel";
 
-    playingGroup.appendChild(buildMemoItem({
-      ...playingVideoData,
-      isPlayingVideo: true,
-      playingSecond: currentPlaybackSecond
-    }));
-    list.appendChild(playingGroup);
-    renderedCount += 1;
+      const category = document.createElement("div");
+      category.className = "channel-category";
+      category.innerText = "현재 재생중";
+      playingGroup.appendChild(category);
+
+      playingGroup.appendChild(buildMemoItem({
+        ...playingVideoData,
+        displayedTimeMemos: playingTitleMatched || playingChannelMatched
+          ? playingVideoData.displayedTimeMemos
+          : playingMatchedTimeMemos,
+        isPlayingVideo: true,
+        playingSecond: currentPlaybackSecond
+      }));
+      list.appendChild(playingGroup);
+      renderedCount += 1;
+    }
   }
 
   const sortedChannels = channelEntries.sort((a, b) => {
@@ -1038,14 +1053,12 @@ function startPlaybackTimePolling() {
 function updateMemoActionButtons() {
   const baseBtn = document.getElementById("saveBaseMemoBtn");
   const timeBtn = document.getElementById("saveTimeBtn");
-
   if (!baseBtn || !timeBtn) return;
 
   const hasVideo = Boolean(currentVideoId);
-  const canSaveBase = hasVideo;
   const canSaveTime = hasVideo && isCurrentPageWatch && !isCurrentPageShorts;
 
-  baseBtn.disabled = !canSaveBase;
+  baseBtn.disabled = !hasVideo;
   timeBtn.disabled = !canSaveTime;
 }
 
