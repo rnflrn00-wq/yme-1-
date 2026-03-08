@@ -678,7 +678,9 @@ function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
         checkMemos();
-        showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
+        if (replaceBase) {
+          showTimeInsidePopup(`📝 ${memoText.trim()}`);
+        }
       });
     });
     });
