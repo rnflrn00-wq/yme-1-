@@ -13,10 +13,11 @@ let activeTimes = {};
 let closedByUser = false;
 let displayEnabled = true;
 let lastMouse = { x: 20, y: 20 };
-let controlButton = null;
 let coachMark = null;
 let sidePanelRoot = null;
 let progressDotLayer = null;
+let sidePanelMemoDraft = "";
+let lastSecondaryMemoSignature = "";
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -159,24 +160,7 @@ function ensureCoachMarkStyle() {
       color: #111;
       background: #8ab4f8;
     }
-
-    .yt-memo-player-btn {
-      width: 48px;
-      height: 48px;
-      border-radius: 28px;
-      background-color: rgba(0, 0, 0, 0.3);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-left: 4px;
-    }
-
-    .yt-memo-player-btn__icon {
-      font-size: 18px;
-      line-height: 1;
-      pointer-events: none;
-    }
-  `;
+`;
   document.head.appendChild(style);
 }
 
@@ -252,6 +236,11 @@ function ensureMemoDetailStyle() {
       background: rgba(138, 180, 248, 0.18);
     }
 
+    .yt-memo-secondary-panel__item.is-active {
+      background: rgba(138, 180, 248, 0.34);
+      border: 1px solid rgba(138, 180, 248, 0.65);
+    }
+
     .yt-memo-secondary-panel__time {
       font-size: 12px;
       font-weight: 700;
@@ -265,6 +254,54 @@ function ensureMemoDetailStyle() {
       white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.35;
+    }
+
+
+    .yt-memo-secondary-panel__composer {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.14);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .yt-memo-secondary-panel__composer-time {
+      font-size: 12px;
+      color: rgba(255,255,255,0.72);
+    }
+
+    .yt-memo-secondary-panel__composer-input {
+      min-height: 62px;
+      resize: vertical;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      padding: 8px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .yt-memo-secondary-panel__composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .yt-memo-secondary-panel__composer-btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #111;
+      background: #8ab4f8;
+      cursor: pointer;
+    }
+
+    .yt-memo-secondary-panel__composer-btn--base {
+      background: rgba(255,255,255,0.75);
     }
 
     .yt-memo-progress-dot-layer {
@@ -303,7 +340,30 @@ function seekCurrentVideoTo(time) {
   video.play().catch(() => {});
 }
 
-function renderSecondaryMemoPanel(memos = []) {
+function getSecondaryMemoSignature(memos = []) {
+  return memos
+    .map((memo) => `${memo.time}:${memo.text}`)
+    .join("||");
+}
+
+function updateSecondaryComposerTime(currentSecond) {
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
+  const timeEl = sidePanelRoot.querySelector(".yt-memo-secondary-panel__composer-time");
+  if (!timeEl) return;
+  timeEl.innerText = `현재 재생 시간: ${formatTime(currentSecond)}`;
+}
+
+function updateSecondaryPanelActiveState(currentSecond) {
+  if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
+  const items = sidePanelRoot.querySelectorAll(".yt-memo-secondary-panel__item[data-time]");
+  items.forEach((item) => {
+    const itemTime = Number(item.dataset.time);
+    const isActive = Number.isFinite(itemTime) && Math.abs(itemTime - currentSecond) <= 1;
+    item.classList.toggle("is-active", isActive);
+  });
+}
+
+function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   ensureMemoDetailStyle();
 
   const secondary = document.querySelector("#secondary");
@@ -369,6 +429,10 @@ function renderSecondaryMemoPanel(memos = []) {
       const item = document.createElement("button");
       item.type = "button";
       item.className = "yt-memo-secondary-panel__item";
+      item.dataset.time = String(memo.time);
+      const isActive = Math.abs(memo.time - currentSecond) <= 1;
+      if (isActive) item.classList.add("is-active");
+
       const timeText = document.createElement("span");
       timeText.className = "yt-memo-secondary-panel__time";
       timeText.innerText = formatTime(memo.time);
@@ -389,9 +453,70 @@ function renderSecondaryMemoPanel(memos = []) {
     timelineSection.appendChild(timeline);
   }
 
+  const composerSection = document.createElement("div");
+  composerSection.className = "yt-memo-secondary-panel__composer";
+
+  const composerLabel = document.createElement("div");
+  composerLabel.className = "yt-memo-secondary-panel__label";
+  composerLabel.innerText = "기본/타임노트 빠른 등록";
+
+  const composerTime = document.createElement("div");
+  composerTime.className = "yt-memo-secondary-panel__composer-time";
+  composerTime.innerText = `현재 재생 시간: ${formatTime(currentSecond)}`;
+
+  const composerInput = document.createElement("textarea");
+  composerInput.className = "yt-memo-secondary-panel__composer-input";
+  composerInput.placeholder = "현재 시점의 메모를 입력하세요";
+  composerInput.value = sidePanelMemoDraft;
+  composerInput.addEventListener("input", () => {
+    sidePanelMemoDraft = composerInput.value;
+  });
+
+  const saveBaseBtn = document.createElement("button");
+  saveBaseBtn.type = "button";
+  saveBaseBtn.className = "yt-memo-secondary-panel__composer-btn yt-memo-secondary-panel__composer-btn--base";
+  saveBaseBtn.innerText = "기본 노트 저장";
+  saveBaseBtn.addEventListener("click", () => {
+    const nextText = composerInput.value.trim();
+    if (!nextText) return;
+    saveMemoFromInlineComposer(0, nextText, { replaceBase: true });
+    sidePanelMemoDraft = "";
+    composerInput.value = "";
+  });
+
+  const saveTimeBtn = document.createElement("button");
+  saveTimeBtn.type = "button";
+  saveTimeBtn.className = "yt-memo-secondary-panel__composer-btn";
+  saveTimeBtn.innerText = "현재 시간 저장";
+  saveTimeBtn.addEventListener("click", () => {
+    const nextText = composerInput.value.trim();
+    if (!nextText) return;
+    saveMemoFromInlineComposer(currentSecond, nextText);
+    sidePanelMemoDraft = "";
+    composerInput.value = "";
+  });
+
+  composerInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault();
+      saveTimeBtn.click();
+    }
+  });
+
+  const composerActionRow = document.createElement("div");
+  composerActionRow.className = "yt-memo-secondary-panel__composer-actions";
+  composerActionRow.appendChild(saveBaseBtn);
+  composerActionRow.appendChild(saveTimeBtn);
+
+  composerSection.appendChild(composerLabel);
+  composerSection.appendChild(composerTime);
+  composerSection.appendChild(composerInput);
+  composerSection.appendChild(composerActionRow);
+
   sidePanelRoot.appendChild(title);
   sidePanelRoot.appendChild(baseSection);
   sidePanelRoot.appendChild(timelineSection);
+  sidePanelRoot.appendChild(composerSection);
 }
 
 function renderProgressMemoDots(memos = []) {
@@ -455,7 +580,7 @@ function getCurrentVideoMeta(videoId) {
   };
 }
 
-function saveTimeMemoFromCoach(time, memoText) {
+function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}) {
   const videoId = getVideoId();
   if (!videoId || !memoText.trim()) return;
 
@@ -468,23 +593,27 @@ function saveTimeMemoFromCoach(time, memoText) {
     const timeMemos = currentMemos.filter((memo) => Number(memo.time) > 0);
     const baseMemo = currentMemos.find((memo) => Number(memo.time) === 0);
     const meta = getCurrentVideoMeta(videoId);
+    const safeTime = Number.isFinite(time) ? Math.max(0, Math.floor(time)) : 0;
+    const nextBaseMemo = replaceBase
+      ? { time: 0, text: memoText.trim(), createdAt: Date.now() }
+      : (baseMemo ? {
+        time: Number.isFinite(baseMemo.time) ? Math.max(0, Math.floor(baseMemo.time)) : 0,
+        text: baseMemo.text,
+        createdAt: Number.isFinite(baseMemo.createdAt) ? baseMemo.createdAt : Date.now() - 1
+      } : null);
 
     const nextData = {
       title: raw?.title || meta.title,
       channel: raw?.channel || meta.channel,
       thumbnail: raw?.thumbnail || meta.thumbnail,
       memos: [
-        ...(baseMemo ? [{
-          time: Number.isFinite(baseMemo.time) ? Math.max(0, Math.floor(baseMemo.time)) : 0,
-          text: baseMemo.text,
-          createdAt: Number.isFinite(baseMemo.createdAt) ? baseMemo.createdAt : Date.now() - 1
-        }] : []),
+        ...(nextBaseMemo ? [nextBaseMemo] : []),
         ...timeMemos.map((memo) => ({
           time: Number.isFinite(memo.time) ? Math.max(0, Math.floor(memo.time)) : 0,
           text: memo.text,
           createdAt: Number.isFinite(memo.createdAt) ? memo.createdAt : Date.now() - 1
         })),
-        { time, text: memoText.trim(), createdAt: Date.now() }
+        ...(replaceBase ? [] : [{ time: safeTime, text: memoText.trim(), createdAt: Date.now() }])
       ]
     };
 
@@ -494,7 +623,7 @@ function saveTimeMemoFromCoach(time, memoText) {
         videoId,
         title: nextData.title,
         thumbnail: nextData.thumbnail,
-        time,
+        time: safeTime,
         text: memoText.trim(),
         createdAt: Date.now()
       });
@@ -504,13 +633,17 @@ function saveTimeMemoFromCoach(time, memoText) {
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
         checkMemos();
-        showTimeInsidePopup(`⏱ ${memoText.trim()}`);
+        showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
       });
     });
     });
   });
 
   if (!didStartRead) return;
+}
+
+function saveTimeMemoFromCoach(time, memoText) {
+  saveMemoFromInlineComposer(time, memoText);
 }
 
 function openCoachMark(button, time) {
@@ -571,35 +704,6 @@ function openCoachMark(button, time) {
   wrapper.style.left = `${left}px`;
   wrapper.style.top = `${top}px`;
   input.focus();
-}
-
-function ensureTimeMemoControlButton() {
-  if (!/youtube\.com$/.test(location.hostname)) return;
-
-  const controls = document.querySelector(".ytp-left-controls");
-  const timeDisplay = controls?.querySelector(".ytp-time-display");
-  if (!controls || !timeDisplay) return;
-
-  if (controlButton && controlButton.isConnected) return;
-
-  const button = document.createElement("button");
-  button.className = "ytp-button yt-memo-player-btn";
-  button.type = "button";
-  button.setAttribute("aria-label", "시간 메모 추가");
-  button.setAttribute("title", "시간 메모 추가");
-  button.innerHTML = '<span class="yt-memo-player-btn__icon">📝</span>';
-
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const video = document.querySelector("video");
-    if (!video) return;
-    const currentTime = Math.floor(video.currentTime || 0);
-    openCoachMark(button, currentTime);
-  });
-
-  timeDisplay.insertAdjacentElement("afterend", button);
-  controlButton = button;
 }
 
 function isFullscreenMode() {
@@ -843,14 +947,13 @@ function checkMemos() {
     return;
   }
 
-  ensureTimeMemoControlButton();
-
   const video = document.querySelector("video");
   if (!video) {
     shownBase = false;
     lastBaseMemoText = null;
     baseMemoDismissed = false;
     removeExistingMemo();
+    lastSecondaryMemoSignature = "";
     renderSecondaryMemoPanel([]);
     renderProgressMemoDots([]);
     return;
@@ -862,6 +965,7 @@ function checkMemos() {
     lastBaseMemoText = null;
     baseMemoDismissed = false;
     removeExistingMemo();
+    lastSecondaryMemoSignature = "";
     renderSecondaryMemoPanel([]);
     renderProgressMemoDots([]);
     return;
@@ -878,12 +982,22 @@ function checkMemos() {
       baseMemoDismissed = false;
       activeTimes = {};
       removeExistingMemo();
+      lastSecondaryMemoSignature = "";
       renderSecondaryMemoPanel([]);
       renderProgressMemoDots([]);
       return;
     }
 
-    renderSecondaryMemoPanel(memos);
+    const currentTime = Math.floor(video.currentTime);
+    const nextSecondaryMemoSignature = getSecondaryMemoSignature(memos);
+    if (nextSecondaryMemoSignature !== lastSecondaryMemoSignature) {
+      renderSecondaryMemoPanel(memos, currentTime);
+      lastSecondaryMemoSignature = nextSecondaryMemoSignature;
+    } else {
+      updateSecondaryPanelActiveState(currentTime);
+      updateSecondaryComposerTime(currentTime);
+    }
+
     renderProgressMemoDots(memos);
 
     const baseMemo = memos.find((memo) => memo.time === 0);
@@ -909,7 +1023,6 @@ function checkMemos() {
       shownBase = false;
     }
 
-    const currentTime = Math.floor(video.currentTime);
     const matchedTimeMemos = memos
       .map((memo, index) => ({ ...memo, index }))
       .filter((memo) => memo.time > 0 && Math.abs(memo.time - currentTime) <= 1);
@@ -961,6 +1074,8 @@ urlObserver = new MutationObserver(() => {
   baseMemoDismissed = false;
   activeTimes = {};
   closedByUser = false;
+  sidePanelMemoDraft = "";
+  lastSecondaryMemoSignature = "";
   removeExistingMemo();
 
   setTimeout(() => {
@@ -991,19 +1106,12 @@ document.addEventListener("fullscreenchange", () => {
 document.addEventListener("click", (event) => {
   if (!isExtensionContextValid()) return;
   if (!coachMark) return;
-  if (coachMark.contains(event.target) || controlButton?.contains(event.target)) return;
+  if (coachMark.contains(event.target)) return;
   closeCoachMark();
 });
 
 window.addEventListener("resize", () => {
   if (!isExtensionContextValid()) return;
-  if (coachMark && controlButton) {
-    const rect = controlButton.getBoundingClientRect();
-    const left = Math.max(8, Math.min(rect.right - coachMark.offsetWidth, window.innerWidth - coachMark.offsetWidth - 8));
-    const top = Math.max(8, rect.top - coachMark.offsetHeight - 10);
-    coachMark.style.left = `${left}px`;
-    coachMark.style.top = `${top}px`;
-  }
   checkMemos();
 });
 

@@ -132,9 +132,11 @@ body {
   background: var(--ds-color-bg);
   border-top: 1px solid color-mix(in srgb, var(--ds-color-ink) 15%, var(--ds-color-bg));
   z-index: 30;
-  transition: transform 0.22s ease;
+  overflow: hidden;
+  max-height: 260px;
+  transition: max-height 0.22s ease;
 }
-.memo-composer-sheet.collapsed { transform: translateY(calc(100% - 30px)); }
+.memo-composer-sheet.collapsed { max-height: 30px; }
 .memo-sheet-handle-wrap { display: flex; justify-content: center; padding: var(--ds-size) 0; cursor: pointer; }
 .memo-sheet-handle { width: 56px; height: 4px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--ds-color-ink) 20%, var(--ds-color-bg)); }
 
