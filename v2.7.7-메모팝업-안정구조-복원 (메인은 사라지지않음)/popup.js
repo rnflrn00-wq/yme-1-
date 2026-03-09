@@ -17,6 +17,7 @@ let currentPlaybackSecond = null;
 let openedTimeNotesPageVideoId = null;
 let lastMainScrollTop = 0;
 let isMemoComposerCollapsed = false;
+let isTimeNotesEditMode = false;
 
 function getVideoIdFromUrl(url) {
   if (!url) return null;
@@ -581,6 +582,7 @@ function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
 function closeTimeNotesPage() {
   closeFloatingTimeMenu();
   openedTimeNotesPageVideoId = null;
+  isTimeNotesEditMode = false;
   showPage("page-main");
 }
 
