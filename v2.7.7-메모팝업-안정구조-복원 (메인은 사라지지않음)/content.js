@@ -425,6 +425,34 @@ function ensureMemoDetailStyle() {
       white-space: nowrap;
     }
 
+    .yt-memo-secondary-panel__composer-btn--time {
+      position: relative;
+    }
+
+    .yt-memo-secondary-panel__composer-btn--time::after {
+      content: "shift+enter";
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 6px);
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: rgba(255,255,255,0.92);
+      background: rgba(0,0,0,0.86);
+      border: 1px solid rgba(255,255,255,0.22);
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.14s ease;
+    }
+
+    .yt-memo-secondary-panel__composer-btn--time:hover::after,
+    .yt-memo-secondary-panel__composer-btn--time:focus-visible::after {
+      opacity: 1;
+    }
+
     .yt-memo-secondary-panel__toast {
       position: sticky;
       bottom: 0;

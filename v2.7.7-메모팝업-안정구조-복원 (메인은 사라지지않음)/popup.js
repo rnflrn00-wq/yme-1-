@@ -280,7 +280,6 @@ function showPage(pageId) {
 function initPageNavigation() {
   document.getElementById("goPage3Btn")?.addEventListener("click", () => showPage("page-settings"));
   document.getElementById("backFromSettingsBtn")?.addEventListener("click", () => showPage("page-main"));
-  document.getElementById("backFromTimeNotesBtn")?.addEventListener("click", () => showPage("page-main"));
 }
 
 function initMainScrollBehavior() {
@@ -569,7 +568,7 @@ function openFloatingTimeMenu({ anchorRect, videoId, memoIndex, memoText, ownerK
 
 function createTimeMemoMenuButton(videoId, memoIndex, memoText) {
   return createActionButton({
-    label: "⋯",
+    label: "MORE",
     className: "menu-btn",
     title: "메뉴",
     onClick: (event) => {
@@ -669,9 +668,8 @@ function openTimeNotesPage({
   const thumbEl = document.getElementById("timeNotesVideoThumb");
   const countEl = document.getElementById("timeNotesPageCount");
   const listEl = document.getElementById("timeNotesPageList");
-  const editBtn = document.getElementById("timeNotesEditBtn");
   const metaEl = document.getElementById("timeNotesVideoMeta");
-  if (!titleEl || !countEl || !listEl || !editBtn || !metaEl) return;
+  if (!titleEl || !countEl || !listEl || !metaEl) return;
 
   titleEl.innerText = title;
   if (channelEl) channelEl.innerText = channel || "Unknown Channel";
@@ -679,31 +677,14 @@ function openTimeNotesPage({
 
   metaEl.onclick = () => openVideoInNewTab(videoId, { showPopup: true });
 
-  editBtn.innerText = isTimeNotesEditMode ? "Done" : "Edit";
-  editBtn.onclick = (event) => {
-    event.stopPropagation();
-    isTimeNotesEditMode = !isTimeNotesEditMode;
-    openTimeNotesPage({
-      videoId,
-      title,
-      channel,
-      thumbnail,
-      baseMemo,
-      displayedTimeMemos,
-      isPlayingVideo,
-      playingSecond,
-      closeExistingMenu: false
-    });
-  };
-
   countEl.innerText = `${displayedTimeMemos.length}`;
   listEl.innerHTML = "";
 
-  renderTimeNotesBaseMemo(videoId, baseMemo, { showMenu: isTimeNotesEditMode });
+  renderTimeNotesBaseMemo(videoId, baseMemo, { showMenu: true });
 
   displayedTimeMemos.forEach((memo) => {
     const isActiveTimeMemo = isPlayingVideo && Number.isFinite(playingSecond) && Math.abs(memo.time - playingSecond) <= 1;
-    listEl.appendChild(buildTimeMemoRow(videoId, memo, { isActiveTimeMemo, showMenu: isTimeNotesEditMode }));
+    listEl.appendChild(buildTimeMemoRow(videoId, memo, { isActiveTimeMemo, showMenu: true }));
   });
 
   openedTimeNotesPageVideoId = videoId;
@@ -1091,7 +1072,6 @@ function bindEvents() {
     closeFloatingTimeMenu();
   });
 
-  document.getElementById("backFromTimeNotesBtn")?.addEventListener("click", closeTimeNotesPage);
 
   window.addEventListener("scroll", closeFloatingTimeMenu, true);
   window.addEventListener("resize", closeFloatingTimeMenu);
