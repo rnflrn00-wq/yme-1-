@@ -17,11 +17,7 @@ let coachMark = null;
 let sidePanelRoot = null;
 let progressDotLayer = null;
 let sidePanelMemoDraft = "";
-let lastSecondaryMemoSignature = "__initial__";
-let lastSecondaryRenderVideoId = null;
-let sidePanelToastHideTimer = null;
-let sidePanelToastText = "";
-let isSecondaryEditMode = false;
+let lastSecondaryMemoSignature = "";
 
 let checkMemosIntervalId = null;
 let urlObserver = null;
@@ -352,8 +348,10 @@ function ensureMemoDetailStyle() {
       align-items: start;
     }
 
-    .yt-memo-secondary-panel__item:hover { background: rgba(138, 180, 248, 0.18); }
-    .yt-memo-secondary-panel__item.is-active { background: rgba(138, 180, 248, 0.34); border: 1px solid rgba(138, 180, 248, 0.65); }
+    .yt-memo-secondary-panel__item.is-active {
+      background: rgba(138, 180, 248, 0.34);
+      border: 1px solid rgba(138, 180, 248, 0.65);
+    }
 
     .yt-memo-secondary-panel__time {
       font-size: 12px;
@@ -370,6 +368,7 @@ function ensureMemoDetailStyle() {
       line-height: 1.35;
     }
 
+
     .yt-memo-secondary-panel__composer {
       margin-top: 10px;
       padding-top: 10px;
@@ -379,11 +378,14 @@ function ensureMemoDetailStyle() {
       gap: 8px;
     }
 
-    .yt-memo-secondary-panel__composer-time { font-size: 12px; color: rgba(255,255,255,0.72); }
+    .yt-memo-secondary-panel__composer-time {
+      font-size: 12px;
+      color: rgba(255,255,255,0.72);
+    }
 
     .yt-memo-secondary-panel__composer-input {
       min-height: 62px;
-      resize: none;
+      resize: vertical;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.08);
@@ -393,7 +395,11 @@ function ensureMemoDetailStyle() {
       outline: none;
     }
 
-    .yt-memo-secondary-panel__composer-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .yt-memo-secondary-panel__composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
 
     .yt-memo-secondary-panel__composer-btn {
       border: 0;
@@ -404,33 +410,13 @@ function ensureMemoDetailStyle() {
       color: #111;
       background: #8ab4f8;
       cursor: pointer;
-      position: relative;
     }
 
-    .yt-memo-secondary-panel__composer-btn--base { background: rgba(255,255,255,0.75); }
-
-    .yt-memo-secondary-panel__composer-btn--time:hover::after,
-    .yt-memo-secondary-panel__composer-btn--time:focus-visible::after {
-      content: "shift+enter";
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      top: calc(100% + 6px);
-      font-size: 11px;
-      color: #fff;
-      background: rgba(0,0,0,0.9);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 6px;
-      padding: 3px 6px;
-      white-space: nowrap;
+    .yt-memo-secondary-panel__composer-btn--base {
+      background: rgba(255,255,255,0.75);
     }
 
-    .yt-memo-secondary-panel__composer-btn--time {
-      position: relative;
-    }
-
-    .yt-memo-secondary-panel__composer-btn--time::after {
-      content: "shift+enter";
+    .yt-memo-progress-dot-layer {
       position: absolute;
       left: 50%;
       bottom: calc(100% + 6px);
@@ -507,28 +493,6 @@ function seekCurrentVideoTo(time) {
   video.play().catch(() => {});
 }
 
-function getCurrentPlaybackSecond() {
-  const video = document.querySelector("video");
-  if (!video) return 0;
-  return Math.max(0, Math.floor(video.currentTime || 0));
-}
-
-function isSidePanelComposerFocused() {
-  const active = document.activeElement;
-  return Boolean(active && active.classList?.contains("yt-memo-secondary-panel__composer-input"));
-}
-
-function isAllowedComposerShortcut(event) {
-  return event.key === "Enter" && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
-}
-
-function blockYoutubeShortcutWhenComposing(event) {
-  if (!isSidePanelComposerFocused()) return;
-  if (event.defaultPrevented) return;
-  if (isAllowedComposerShortcut(event)) return;
-  event.stopImmediatePropagation();
-}
-
 function getSecondaryMemoSignature(memos = []) {
   return memos
     .map((memo) => `${memo.time}:${memo.text}`)
@@ -550,111 +514,6 @@ function updateSecondaryPanelActiveState(currentSecond) {
     const isActive = Number.isFinite(itemTime) && Math.abs(itemTime - currentSecond) <= 1;
     item.classList.toggle("is-active", isActive);
   });
-}
-
-function shouldRenderSecondaryPanel(nextSignature, videoId) {
-  if (nextSignature !== lastSecondaryMemoSignature) return true;
-  if (videoId !== lastSecondaryRenderVideoId) return true;
-  if (!sidePanelRoot || !sidePanelRoot.isConnected) return true;
-
-  const secondary = document.querySelector("#secondary");
-  if (!secondary) return true;
-
-  return sidePanelRoot.parentElement !== secondary;
-}
-
-function upsertSidePanelToastElement() {
-  if (!sidePanelRoot || !sidePanelRoot.isConnected) return null;
-
-  let toast = sidePanelRoot.querySelector(".yt-memo-secondary-panel__toast");
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.className = "yt-memo-secondary-panel__toast";
-    sidePanelRoot.appendChild(toast);
-  }
-
-  return toast;
-}
-
-function showSidePanelToast(text) {
-  if (!sidePanelRoot || !sidePanelRoot.isConnected) return;
-
-  sidePanelToastText = text;
-  if (sidePanelToastHideTimer) {
-    clearTimeout(sidePanelToastHideTimer);
-    sidePanelToastHideTimer = null;
-  }
-
-  const toast = upsertSidePanelToastElement();
-  if (!toast) return;
-
-  toast.innerText = sidePanelToastText;
-  requestAnimationFrame(() => {
-    toast.classList.add("is-visible");
-  });
-
-  sidePanelToastHideTimer = setTimeout(() => {
-    sidePanelToastText = "";
-    toast.classList.remove("is-visible");
-    sidePanelToastHideTimer = null;
-  }, 1000);
-}
-
-function updateMemoByTime(videoId, targetTime, nextText) {
-  const didStartRead = withSafeChromeCall(() => {
-    chrome.storage.local.get([videoId], (result) => {
-      const raw = result[videoId];
-      const currentMemos = Array.isArray(raw?.memos)
-        ? raw.memos.filter((memo) => memo && typeof memo.text === "string")
-        : getNormalizedMemos(raw);
-      const index = currentMemos.findIndex((memo) => Number(memo.time) === Number(targetTime));
-      if (index < 0) return;
-      currentMemos[index] = {
-        ...currentMemos[index],
-        time: Number.isFinite(currentMemos[index].time) ? Math.max(0, Math.floor(currentMemos[index].time)) : 0,
-        text: nextText,
-        createdAt: Date.now()
-      };
-      const meta = getCurrentVideoMeta(videoId);
-      chrome.storage.local.set({
-        [videoId]: {
-          title: raw?.title || meta.title,
-          channel: raw?.channel || meta.channel,
-          thumbnail: raw?.thumbnail || meta.thumbnail,
-          memos: currentMemos
-        }
-      });
-    });
-  });
-
-  if (!didStartRead) return;
-}
-
-function deleteMemoByTime(videoId, targetTime) {
-  const didStartRead = withSafeChromeCall(() => {
-    chrome.storage.local.get([videoId], (result) => {
-      const raw = result[videoId];
-      const currentMemos = Array.isArray(raw?.memos)
-        ? raw.memos.filter((memo) => memo && typeof memo.text === "string")
-        : getNormalizedMemos(raw);
-      const nextMemos = currentMemos.filter((memo) => Number(memo.time) !== Number(targetTime));
-      if (!nextMemos.length) {
-        chrome.storage.local.remove(videoId);
-        return;
-      }
-      const meta = getCurrentVideoMeta(videoId);
-      chrome.storage.local.set({
-        [videoId]: {
-          title: raw?.title || meta.title,
-          channel: raw?.channel || meta.channel,
-          thumbnail: raw?.thumbnail || meta.thumbnail,
-          memos: nextMemos
-        }
-      });
-    });
-  });
-
-  if (!didStartRead) return;
 }
 
 function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
@@ -826,10 +685,6 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
       const isActive = Math.abs(memo.time - currentSecond) <= 1;
       if (isActive) item.classList.add("is-active");
 
-      const itemMain = document.createElement("button");
-      itemMain.type = "button";
-      itemMain.className = "yt-memo-secondary-panel__item-main";
-
       const timeText = document.createElement("span");
       timeText.className = "yt-memo-secondary-panel__time";
       timeText.innerText = formatTime(memo.time);
@@ -893,7 +748,7 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   composerSection.className = "yt-memo-secondary-panel__composer";
 
   const composerLabel = document.createElement("div");
-  composerLabel.className = "yt-memo-secondary-panel__section-title";
+  composerLabel.className = "yt-memo-secondary-panel__label";
   composerLabel.innerText = "기본/타임노트 빠른 등록";
 
   const composerTime = document.createElement("div");
@@ -918,35 +773,25 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
     saveMemoFromInlineComposer(0, nextText, { replaceBase: true });
     sidePanelMemoDraft = "";
     composerInput.value = "";
-    composerInput.blur();
   });
 
   const saveTimeBtn = document.createElement("button");
   saveTimeBtn.type = "button";
-  saveTimeBtn.className = "yt-memo-secondary-panel__composer-btn yt-memo-secondary-panel__composer-btn--time";
+  saveTimeBtn.className = "yt-memo-secondary-panel__composer-btn";
   saveTimeBtn.innerText = "현재 시간 저장";
   saveTimeBtn.addEventListener("click", () => {
     const nextText = composerInput.value.trim();
     if (!nextText) return;
-    const liveSecond = getCurrentPlaybackSecond();
-    saveMemoFromInlineComposer(liveSecond, nextText);
-    showSidePanelToast(nextText);
+    saveMemoFromInlineComposer(currentSecond, nextText);
     sidePanelMemoDraft = "";
     composerInput.value = "";
-    composerInput.blur();
   });
 
   composerInput.addEventListener("keydown", (event) => {
-    event.stopPropagation();
-    if (event.key === "Enter" && event.shiftKey && !event.isComposing) {
+    if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
       saveTimeBtn.click();
-      return;
     }
-  });
-
-  composerInput.addEventListener("keyup", (event) => {
-    event.stopPropagation();
   });
 
   const composerActionRow = document.createElement("div");
@@ -959,19 +804,10 @@ function renderSecondaryMemoPanel(memos = [], currentSecond = 0) {
   composerSection.appendChild(composerInput);
   composerSection.appendChild(composerActionRow);
 
-  sidePanelRoot.appendChild(head);
-  sidePanelRoot.appendChild(topVideo);
+  sidePanelRoot.appendChild(title);
   sidePanelRoot.appendChild(baseSection);
   sidePanelRoot.appendChild(timelineSection);
   sidePanelRoot.appendChild(composerSection);
-
-  if (sidePanelToastText) {
-    const toast = upsertSidePanelToastElement();
-    if (toast) {
-      toast.innerText = sidePanelToastText;
-      toast.classList.add("is-visible");
-    }
-  }
 }
 
 function renderProgressMemoDots(memos = []) {
@@ -1096,9 +932,7 @@ function saveMemoFromInlineComposer(time, memoText, { replaceBase = false } = {}
         [RECENT_HISTORY_KEY]: history.slice(0, 50)
       }, () => {
         checkMemos();
-        if (replaceBase) {
-          showTimeInsidePopup(`📝 ${memoText.trim()}`);
-        }
+        showTimeInsidePopup(replaceBase ? `📝 ${memoText.trim()}` : `⏱ ${memoText.trim()}`);
       });
     });
     });
@@ -1419,7 +1253,6 @@ function checkMemos() {
     baseMemoDismissed = false;
     removeExistingMemo();
     lastSecondaryMemoSignature = "";
-    lastSecondaryRenderVideoId = null;
     renderSecondaryMemoPanel([]);
     renderProgressMemoDots([]);
     return;
@@ -1432,7 +1265,6 @@ function checkMemos() {
     baseMemoDismissed = false;
     removeExistingMemo();
     lastSecondaryMemoSignature = "";
-    lastSecondaryRenderVideoId = null;
     renderSecondaryMemoPanel([]);
     renderProgressMemoDots([]);
     return;
@@ -1452,17 +1284,15 @@ function checkMemos() {
       baseMemoDismissed = false;
       activeTimes = {};
       removeExistingMemo();
-      if (shouldRenderSecondaryPanel(nextSecondaryMemoSignature, videoId)) {
-        renderSecondaryMemoPanel([], currentTime);
-        lastSecondaryMemoSignature = nextSecondaryMemoSignature;
-      } else {
-        updateSecondaryComposerTime(currentTime);
-      }
+      lastSecondaryMemoSignature = "";
+      renderSecondaryMemoPanel([]);
       renderProgressMemoDots([]);
       return;
     }
 
-    if (shouldRenderSecondaryPanel(nextSecondaryMemoSignature, videoId)) {
+    const currentTime = Math.floor(video.currentTime);
+    const nextSecondaryMemoSignature = getSecondaryMemoSignature(memos);
+    if (nextSecondaryMemoSignature !== lastSecondaryMemoSignature) {
       renderSecondaryMemoPanel(memos, currentTime);
       lastSecondaryMemoSignature = nextSecondaryMemoSignature;
     } else {
@@ -1541,12 +1371,6 @@ function resetMemoUiStateForNavigation() {
   closedByUser = false;
   sidePanelMemoDraft = "";
   lastSecondaryMemoSignature = "";
-  lastSecondaryRenderVideoId = null;
-  sidePanelToastText = "";
-  if (sidePanelToastHideTimer) {
-    clearTimeout(sidePanelToastHideTimer);
-    sidePanelToastHideTimer = null;
-  }
   removeExistingMemo();
 }
 
