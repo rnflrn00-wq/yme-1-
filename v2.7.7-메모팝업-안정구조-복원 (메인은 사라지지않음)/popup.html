@@ -82,12 +82,32 @@
   </section>
 
   <section id="page-time-notes" class="page">
-    <div class="sub-header">
-      <button id="backFromTimeNotesBtn" class="ds-btn ds-btn--ghost">← 뒤로가기</button>
-      <h3 id="timeNotesPageTitle">타임 노트</h3>
+    <div class="time-notes-header">
+      <button id="backFromTimeNotesBtn" class="ds-btn ds-btn--ghost">←</button>
+      <h3 class="time-notes-header-title">Note List</h3>
+      <button id="timeNotesEditBtn" class="ds-btn ds-btn--ghost ds-btn--xs">Edit</button>
     </div>
-    <div id="timeNotesPageCount" class="time-notes-count"></div>
-    <div id="timeNotesPageList" class="time-notes-list scrollbar-minimal"></div>
+
+    <div id="timeNotesVideoMeta" class="time-notes-video-meta click-target">
+      <img id="timeNotesVideoThumb" class="composer-thumbnail" alt="영상 썸네일" />
+      <div class="time-notes-video-texts">
+        <div id="timeNotesVideoChannel" class="time-notes-video-channel"></div>
+        <div id="timeNotesPageTitle" class="time-notes-video-title"></div>
+      </div>
+    </div>
+
+    <div class="time-notes-section">
+      <h4 class="time-notes-section-title">General Notes</h4>
+      <div id="timeNotesBaseMemo" class="time-notes-base-row"></div>
+    </div>
+
+    <div class="time-notes-section time-notes-section--fill">
+      <div class="time-notes-section-head">
+        <h4 class="time-notes-section-title">Time Notes</h4>
+        <div id="timeNotesPageCount" class="time-notes-count"></div>
+      </div>
+      <div id="timeNotesPageList" class="time-notes-list scrollbar-minimal"></div>
+    </div>
   </section>
 
   <div id="customModal" class="custom-modal">
